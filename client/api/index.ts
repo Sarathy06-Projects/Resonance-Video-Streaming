@@ -581,9 +581,6 @@ routeBoth('post', '/rooms', async (req: Request, res: Response) => {
       },
       shareUrl: `/room/${roomId}`,
     });
-      videoInfo,
-      shareUrl: `/room/${roomId}`,
-    });
   } catch (err: any) {
     console.error('[POST /api/rooms] Error:', err);
     res.status(500).json({ error: 'Failed to create room. Please try again.' });
