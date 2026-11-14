@@ -1,12 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { AccessToken, TrackSource } from 'livekit-server-sdk';
 import { roomManager } from '../room/manager';
-import {
-  extractYouTubeId,
-  fetchYouTubeMetadata,
-  isValidYouTubeUrl,
-  CURATED_DEMO_VIDEOS,
-} from '../utils/youtube';
+import { resolveMediaUrl, CURATED_DEMO_VIDEOS } from '../utils/resolver';
 import {
   generateUserId,
   getRandomColor,
@@ -18,36 +13,42 @@ import { query } from '../db';
 
 const router = Router();
 
-// Validate YouTube URL preview
+// Validate Video URL preview across all supported providers
 router.post('/validate-url', async (req: Request, res: Response) => {
   try {
     const { url } = req.body;
-    if (!url || typeof url !== 'string' || url.length > 500) {
-      res.status(400).json({ error: 'Please enter a valid YouTube link' });
+    if (!url || typeof url !== 'string' || url.length > 1000) {
+      res.status(400).json({ error: 'Please enter a valid video link' });
       return;
     }
-    const videoId = extractYouTubeId(url);
-    if (!videoId) {
-      res.status(400).json({
-        error: 'Unsupported URL format. Please paste a standard YouTube video, Shorts, or watch link.',
-      });
-      return;
-    }
-    const info = await fetchYouTubeMetadata(videoId);
-    res.json({ valid: true, videoId, info });
+    const resolved = await resolveMediaUrl(url);
+    res.json({
+      valid: true,
+      provider: resolved.provider,
+      videoId: resolved.videoId,
+      capabilities: resolved.capabilities,
+      info: {
+        title: resolved.title,
+        authorName: resolved.authorName,
+        thumbnailUrl: resolved.thumbnailUrl,
+        provider: resolved.provider,
+        format: resolved.format,
+        capabilities: resolved.capabilities,
+        supported: resolved.supported,
+      },
+    });
   } catch (err: any) {
-    console.error('[POST /api/rooms/validate-url] Error:', err);
-    res.status(500).json({ error: 'Error validating URL' });
+    res.status(400).json({ error: err.message || 'Error validating video link' });
   }
 });
 
-// Create Room (P0)
+// Create Room (P0) — Supports YouTube, Direct MP4/WebM, HLS, Vimeo, Dailymotion, DASH, Twitch
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { videoUrl, hostName, isPrivate, passcode, theme } = req.body;
 
-    if (!videoUrl || typeof videoUrl !== 'string' || videoUrl.length > 500 || !isValidYouTubeUrl(videoUrl)) {
-      res.status(400).json({ error: 'Valid YouTube URL is required' });
+    if (!videoUrl || typeof videoUrl !== 'string' || videoUrl.length > 1000) {
+      res.status(400).json({ error: 'Valid video URL is required' });
       return;
     }
 
@@ -87,7 +88,7 @@ router.post('/', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('[POST /api/rooms] Error:', err);
-    res.status(500).json({ error: 'Failed to create room. Please try again.' });
+    res.status(400).json({ error: err.message || 'Failed to create room with this video URL.' });
   }
 });
 
@@ -350,7 +351,7 @@ router.post('/:id/playback', async (req: Request, res: Response) => {
 router.post('/:id/video', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { token, videoUrl, videoId, title } = req.body;
+    const { token, videoUrl, videoId, title, provider: requestedProvider } = req.body;
     const decoded = verifySessionToken(token);
     if (!decoded || decoded.roomId !== id || decoded.role !== 'host') {
       res.status(403).json({ error: 'Unauthorized: only host can change video' });
@@ -359,13 +360,13 @@ router.post('/:id/video', async (req: Request, res: Response) => {
 
     let finalVideoId = videoId;
     let finalTitle = title;
+    let finalProvider = requestedProvider || 'youtube';
+
     if (videoUrl) {
-      const extracted = extractYouTubeId(videoUrl);
-      if (extracted) {
-        finalVideoId = extracted;
-        const meta = await fetchYouTubeMetadata(extracted);
-        finalTitle = meta.title;
-      }
+      const resolved = await resolveMediaUrl(videoUrl);
+      finalVideoId = resolved.videoId;
+      finalTitle = resolved.title;
+      finalProvider = resolved.provider;
     }
 
     if (!finalVideoId) {
@@ -378,13 +379,15 @@ router.post('/:id/video', async (req: Request, res: Response) => {
       coordinator.playbackState = {
         ...coordinator.playbackState,
         videoId: finalVideoId,
+        provider: finalProvider,
         status: 'playing',
         position: 0,
         updatedAt: Date.now(),
         playbackRate: 1,
       };
       coordinator.metadata.videoId = finalVideoId;
-      coordinator.metadata.title = finalTitle || 'YouTube Video';
+      coordinator.metadata.videoProvider = finalProvider;
+      coordinator.metadata.title = finalTitle || 'Video';
       coordinator.broadcast({
         id: generateUserId(),
         roomId: id,
@@ -392,12 +395,19 @@ router.post('/:id/video', async (req: Request, res: Response) => {
         senderId: decoded.userId,
         sequence: coordinator.getNextSequence(),
         sentAt: Date.now(),
-        payload: { videoId: finalVideoId, title: finalTitle, position: 0, status: 'playing' },
+        payload: {
+          videoId: finalVideoId,
+          provider: finalProvider,
+          title: finalTitle,
+          position: 0,
+          status: 'playing',
+        },
       });
     }
 
     const newPlayback = {
       videoId: finalVideoId,
+      provider: finalProvider,
       status: 'playing',
       position: 0,
       updatedAt: Date.now(),
@@ -405,13 +415,13 @@ router.post('/:id/video', async (req: Request, res: Response) => {
     };
 
     await query(
-      'UPDATE rooms SET video_id = $1, title = $2, playback_state = $3 WHERE id = $4',
-      [finalVideoId, finalTitle || 'YouTube Video', JSON.stringify(newPlayback), id]
+      'UPDATE rooms SET video_provider = $1, video_id = $2, title = $3, playback_state = $4 WHERE id = $5',
+      [finalProvider, finalVideoId, finalTitle || 'Video', JSON.stringify(newPlayback), id]
     );
 
-    res.json({ success: true, videoId: finalVideoId, title: finalTitle, playback: newPlayback });
+    res.json({ success: true, provider: finalProvider, videoId: finalVideoId, title: finalTitle, playback: newPlayback });
   } catch (err: any) {
-    res.status(500).json({ error: 'Error changing video' });
+    res.status(500).json({ error: err.message || 'Error changing video' });
   }
 });
 

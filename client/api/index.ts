@@ -104,74 +104,328 @@ function getRandomColor(): string {
   return AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 }
 
-// YouTube Utilities
-function extractYouTubeId(url: string): string | null {
-  if (!url || typeof url !== 'string') return null;
-  const trimmed = url.trim();
-  if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) return trimmed;
+// SSRF Protection: Block private, local, and metadata IP ranges
+function isForbiddenHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().trim().replace(/^\[|\]$/g, '');
 
-  const patterns = [
-    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i,
-    /(?:youtube\.com\/shorts\/)([^"&?\/\s]{11})/i,
-    /(?:youtube\.com\/live\/)([^"&?\/\s]{11})/i,
-    /(?:tube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([^"&?\/\s]{11})/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = trimmed.match(pattern);
-    if (match && match[1] && match[1].length === 11) return match[1];
+  if (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '::1' ||
+    host === '0.0.0.0' ||
+    host === '169.254.169.254' ||
+    host.endsWith('.local') ||
+    host.endsWith('.internal')
+  ) {
+    return true;
   }
-  return null;
+
+  const ipv4Match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const [_, b1, b2] = ipv4Match.map(Number);
+    if (b1 === 10) return true;
+    if (b1 === 172 && b2 >= 16 && b2 <= 31) return true;
+    if (b1 === 192 && b2 === 168) return true;
+    if (b1 === 169 && b2 === 254) return true;
+    if (b1 === 127) return true;
+  }
+
+  return false;
 }
 
-async function fetchYouTubeMetadata(videoId: string) {
+const YOUTUBE_REGEX =
+  /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([\w-]{11})/;
+const VIMEO_REGEX = /(?:vimeo\.com\/(?:video\/|channels\/[^/]+\/)?|player\.vimeo\.com\/video\/)(\d+)/;
+const DAILYMOTION_REGEX = /(?:dailymotion\.com\/(?:video|embed\/video)\/|dai\.ly\/)([a-zA-Z0-9]+)/;
+const TWITCH_VOD_REGEX = /twitch\.tv\/videos\/(\d+)/;
+const TWITCH_CHANNEL_REGEX = /twitch\.tv\/([a-zA-Z0-9_]{3,25})/;
+
+async function resolveMediaUrl(rawUrl: string) {
+  if (!rawUrl || typeof rawUrl !== 'string') {
+    throw new Error('Please enter a valid video URL');
+  }
+
+  const trimmed = rawUrl.trim();
+
+  // 11-char YouTube ID
+  if (/^[\w-]{11}$/.test(trimmed)) {
+    return resolveYouTube(trimmed, `https://www.youtube.com/watch?v=${trimmed}`);
+  }
+
+  let parsed: URL;
   try {
-    const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
-    if (res.ok) {
-      const data = await res.json();
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error('Invalid URL format. Please paste a full https:// video link.');
+  }
+
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('Only secure HTTPS URLs are permitted');
+  }
+
+  if (parsed.protocol === 'http:' && !parsed.hostname.includes('localhost') && process.env.NODE_ENV === 'production') {
+    throw new Error('Only secure HTTPS video streams are supported');
+  }
+
+  if (isForbiddenHost(parsed.hostname)) {
+    throw new Error('Access to private or local network resources is restricted');
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const path = parsed.pathname.toLowerCase();
+
+  // 1. YouTube
+  if (host.includes('youtube.com') || host.includes('youtu.be')) {
+    const match = trimmed.match(YOUTUBE_REGEX);
+    if (!match) throw new Error('Invalid YouTube video link structure');
+    return resolveYouTube(match[1], trimmed);
+  }
+
+  // 2. Direct MP4 / WebM
+  if (path.endsWith('.mp4') || path.endsWith('.webm')) {
+    const format = path.endsWith('.webm') ? 'webm' : 'mp4';
+    const filename = parsed.pathname.split('/').pop() || `Direct ${format.toUpperCase()} Video`;
+    const cleanTitle = decodeURIComponent(filename).replace(/[-_]/g, ' ').replace(/\.\w+$/, '');
+    return {
+      videoId: trimmed,
+      url: trimmed,
+      title: cleanTitle || `Direct ${format.toUpperCase()} Stream`,
+      authorName: parsed.hostname,
+      thumbnailUrl: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=600&q=80',
+      provider: 'direct',
+      format,
+      capabilities: { canSeek: true, canPause: true, canSyncRate: true, isLive: false },
+      supported: true,
+    };
+  }
+
+  // 3. HLS (.m3u8)
+  if (path.endsWith('.m3u8') || path.includes('/hls/')) {
+    const filename = parsed.pathname.split('/').pop() || 'HLS Live/VOD Stream';
+    const cleanTitle = decodeURIComponent(filename).replace(/\.m3u8.*$/, '').replace(/[-_]/g, ' ');
+    return {
+      videoId: trimmed,
+      url: trimmed,
+      title: cleanTitle ? `HLS: ${cleanTitle}` : 'HLS Adaptive Video Stream',
+      authorName: parsed.hostname,
+      thumbnailUrl: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=600&q=80',
+      provider: 'hls',
+      format: 'hls',
+      capabilities: { canSeek: true, canPause: true, canSyncRate: true, isLive: false },
+      supported: true,
+    };
+  }
+
+  // 4. Vimeo
+  if (host.includes('vimeo.com')) {
+    const match = trimmed.match(VIMEO_REGEX);
+    if (!match) throw new Error('Unsupported Vimeo URL. Format: vimeo.com/123456789');
+    return resolveVimeo(match[1], trimmed);
+  }
+
+  // 5. Dailymotion
+  if (host.includes('dailymotion.com') || host.includes('dai.ly')) {
+    const match = trimmed.match(DAILYMOTION_REGEX);
+    if (!match) throw new Error('Unsupported Dailymotion URL. Format: dailymotion.com/video/x...');
+    return resolveDailymotion(match[1], trimmed);
+  }
+
+  // 6. DASH (.mpd)
+  if (path.endsWith('.mpd') || path.includes('/dash/')) {
+    const filename = parsed.pathname.split('/').pop() || 'DASH Stream';
+    const cleanTitle = decodeURIComponent(filename).replace(/\.mpd.*$/, '').replace(/[-_]/g, ' ');
+    return {
+      videoId: trimmed,
+      url: trimmed,
+      title: cleanTitle ? `DASH: ${cleanTitle}` : 'MPEG-DASH Adaptive Stream',
+      authorName: parsed.hostname,
+      thumbnailUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80',
+      provider: 'dash',
+      format: 'dash',
+      capabilities: { canSeek: true, canPause: true, canSyncRate: true, isLive: false },
+      supported: true,
+    };
+  }
+
+  // 7. Twitch
+  if (host.includes('twitch.tv')) {
+    const vodMatch = trimmed.match(TWITCH_VOD_REGEX);
+    if (vodMatch) {
       return {
-        videoId,
-        title: data.title || 'YouTube Video',
-        authorName: data.author_name || 'YouTube Creator',
-        thumbnailUrl: data.thumbnail_url || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+        videoId: vodMatch[1],
+        url: trimmed,
+        title: `Twitch Broadcast VOD (${vodMatch[1]})`,
+        authorName: 'Twitch Creator',
+        thumbnailUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80',
+        provider: 'twitch',
+        capabilities: { canSeek: true, canPause: true, canSyncRate: true, isLive: false },
+        supported: true,
       };
     }
-  } catch {}
-  return {
+    const channelMatch = trimmed.match(TWITCH_CHANNEL_REGEX);
+    if (channelMatch && !['directory', 'p', 'search', 'settings', 'downloads'].includes(channelMatch[1].toLowerCase())) {
+      return {
+        videoId: channelMatch[1],
+        url: trimmed,
+        title: `Twitch Live Stream: ${channelMatch[1]}`,
+        authorName: channelMatch[1],
+        thumbnailUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80',
+        provider: 'twitch',
+        capabilities: { canSeek: false, canPause: true, canSyncRate: false, isLive: true },
+        supported: true,
+      };
+    }
+  }
+
+  throw new Error(
+    'Unsupported video provider or media format. Resonance supports YouTube, Direct MP4/WebM, HLS (.m3u8), Vimeo, Dailymotion, DASH (.mpd), and Twitch.'
+  );
+}
+
+async function resolveYouTube(videoId: string, originalUrl: string) {
+  const defaultInfo = {
     videoId,
-    title: 'YouTube Video',
+    url: originalUrl,
+    title: `YouTube Video (${videoId})`,
     authorName: 'YouTube Creator',
     thumbnailUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    provider: 'youtube',
+    capabilities: { canSeek: true, canPause: true, canSyncRate: true, isLive: false },
+    supported: true,
   };
+
+  try {
+    const oembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}`;
+    const res = await fetch(oembedUrl, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      const data: any = await res.json();
+      if (data && data.title) {
+        defaultInfo.title = data.title;
+        defaultInfo.authorName = data.author_name || 'YouTube Creator';
+        if (data.thumbnail_url) defaultInfo.thumbnailUrl = data.thumbnail_url;
+      }
+    }
+  } catch {}
+
+  return defaultInfo;
+}
+
+async function resolveVimeo(videoId: string, originalUrl: string) {
+  const defaultInfo = {
+    videoId,
+    url: originalUrl,
+    title: `Vimeo Video (${videoId})`,
+    authorName: 'Vimeo Creator',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=600&q=80',
+    provider: 'vimeo',
+    capabilities: { canSeek: true, canPause: true, canSyncRate: true, isLive: false },
+    supported: true,
+  };
+
+  try {
+    const oembedUrl = `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(`https://vimeo.com/${videoId}`)}`;
+    const res = await fetch(oembedUrl, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      const data: any = await res.json();
+      if (data && data.title) {
+        defaultInfo.title = data.title;
+        defaultInfo.authorName = data.author_name || 'Vimeo Creator';
+        if (data.thumbnail_url) defaultInfo.thumbnailUrl = data.thumbnail_url;
+      }
+    }
+  } catch {}
+
+  return defaultInfo;
+}
+
+async function resolveDailymotion(videoId: string, originalUrl: string) {
+  const defaultInfo = {
+    videoId,
+    url: originalUrl,
+    title: `Dailymotion Video (${videoId})`,
+    authorName: 'Dailymotion Creator',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=600&q=80',
+    provider: 'dailymotion',
+    capabilities: { canSeek: true, canPause: true, canSyncRate: true, isLive: false },
+    supported: true,
+  };
+
+  try {
+    const oembedUrl = `https://www.dailymotion.com/services/oembed?url=${encodeURIComponent(`https://www.dailymotion.com/video/${videoId}`)}`;
+    const res = await fetch(oembedUrl, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      const data: any = await res.json();
+      if (data && data.title) {
+        defaultInfo.title = data.title;
+        defaultInfo.authorName = data.author_name || 'Dailymotion Creator';
+        if (data.thumbnail_url) defaultInfo.thumbnailUrl = data.thumbnail_url;
+      }
+    }
+  } catch {}
+
+  return defaultInfo;
 }
 
 const CURATED_DEMOS = [
   {
     id: 'demo-1',
-    videoId: 'dQw4w9WgXcQ',
-    title: 'Rick Astley - Never Gonna Give You Up (Official Music Video)',
-    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
-    channel: 'Rick Astley',
-    genre: 'Music Video',
-    category: 'music',
+    videoId: 'aqz-KE-bpKQ',
+    title: 'Big Buck Bunny (Official 4K 60fps)',
+    thumbnail: 'https://img.youtube.com/vi/aqz-KE-bpKQ/hqdefault.jpg',
+    channel: 'Blender Foundation',
+    category: 'YouTube Animation',
+    provider: 'youtube',
+    url: 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
   },
   {
     id: 'demo-2',
-    videoId: 'jNQXAC9IVRw',
-    title: 'Me at the zoo (First YouTube Video Ever)',
-    thumbnail: 'https://img.youtube.com/vi/jNQXAC9IVRw/hqdefault.jpg',
-    channel: 'jawed',
-    genre: 'Classic / History',
-    category: 'vlog',
+    videoId: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+    title: 'Big Buck Bunny (Direct HTML5 MP4)',
+    thumbnail: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg',
+    channel: 'Google Cloud Media',
+    category: 'Direct MP4',
+    provider: 'direct',
+    url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
   },
   {
     id: 'demo-3',
-    videoId: 'L_LUpnjgPso',
-    title: 'Lofi Girl - Synthwave Radio / Beats to Chill / Game to',
-    thumbnail: 'https://img.youtube.com/vi/L_LUpnjgPso/hqdefault.jpg',
-    channel: 'Lofi Girl',
-    genre: 'Lofi / Ambience',
-    category: 'chill',
+    videoId: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+    title: 'Big Buck Bunny HLS Adaptive Stream (.m3u8)',
+    thumbnail: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=600&q=80',
+    channel: 'Mux Video Test',
+    category: 'HLS Stream',
+    provider: 'hls',
+    url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+  },
+  {
+    id: 'demo-4',
+    videoId: '76979871',
+    title: 'The New Normal (Vimeo Official Embed)',
+    thumbnail: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=600&q=80',
+    channel: 'Vimeo Studios',
+    category: 'Vimeo',
+    provider: 'vimeo',
+    url: 'https://vimeo.com/76979871',
+  },
+  {
+    id: 'demo-5',
+    videoId: 'x8n6f4s',
+    title: 'Wild Nature (Dailymotion Embed)',
+    thumbnail: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=600&q=80',
+    channel: 'Dailymotion Featured',
+    category: 'Dailymotion',
+    provider: 'dailymotion',
+    url: 'https://www.dailymotion.com/video/x8n6f4s',
+  },
+  {
+    id: 'demo-6',
+    videoId: 'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd',
+    title: 'Akamai DASH MPEG Manifest (.mpd)',
+    thumbnail: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80',
+    channel: 'Akamai Test Streams',
+    category: 'DASH Stream',
+    provider: 'dash',
+    url: 'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd',
   },
 ];
 
@@ -204,42 +458,47 @@ routeBoth('get', '/rooms/curated/demos', (_req: Request, res: Response) => {
   res.json({ demos: CURATED_DEMOS });
 });
 
-// 3. Validate URL
+// 3. Validate URL (Universal: YouTube, Direct MP4/WebM, HLS, Vimeo, Dailymotion, DASH, Twitch)
 routeBoth('post', '/rooms/validate-url', async (req: Request, res: Response) => {
   try {
     const { url } = req.body;
-    if (!url || typeof url !== 'string' || url.length > 500) {
-      res.status(400).json({ error: 'Please enter a valid YouTube link' });
+    if (!url || typeof url !== 'string' || url.length > 1000) {
+      res.status(400).json({ error: 'Please enter a valid video link' });
       return;
     }
-    const videoId = extractYouTubeId(url);
-    if (!videoId) {
-      res.status(400).json({
-        error: 'Unsupported URL format. Please paste a standard YouTube video, Shorts, or watch link.',
-      });
-      return;
-    }
-    const info = await fetchYouTubeMetadata(videoId);
-    res.json({ valid: true, videoId, info });
+    const resolved = await resolveMediaUrl(url);
+    res.json({
+      valid: true,
+      provider: resolved.provider,
+      videoId: resolved.videoId,
+      capabilities: resolved.capabilities,
+      info: {
+        title: resolved.title,
+        authorName: resolved.authorName,
+        thumbnailUrl: resolved.thumbnailUrl,
+        provider: resolved.provider,
+        format: (resolved as any).format,
+        capabilities: resolved.capabilities,
+        supported: resolved.supported,
+      },
+    });
   } catch (err: any) {
-    res.status(500).json({ error: 'Error validating URL' });
+    res.status(400).json({ error: err.message || 'Error validating video link' });
   }
 });
 
-// 4. Create Room
+// 4. Create Room (Universal: YouTube, Direct MP4/WebM, HLS, Vimeo, Dailymotion, DASH, Twitch)
 routeBoth('post', '/rooms', async (req: Request, res: Response) => {
   try {
     const { videoUrl, hostName, isPrivate, passcode, theme } = req.body;
-    if (!videoUrl || typeof videoUrl !== 'string' || videoUrl.length > 500) {
-      res.status(400).json({ error: 'Valid YouTube URL is required' });
+    if (!videoUrl || typeof videoUrl !== 'string' || videoUrl.length > 1000) {
+      res.status(400).json({ error: 'Valid video URL is required' });
       return;
     }
 
-    const videoId = extractYouTubeId(videoUrl);
-    if (!videoId) {
-      res.status(400).json({ error: 'Unsupported YouTube URL format' });
-      return;
-    }
+    const resolved = await resolveMediaUrl(videoUrl);
+    const videoId = resolved.videoId;
+    const videoProvider = resolved.provider;
 
     const rawName = typeof hostName === 'string' ? hostName.trim() : '';
     const hostDisplayName = rawName.slice(0, 50) || 'Host';
@@ -247,7 +506,6 @@ routeBoth('post', '/rooms', async (req: Request, res: Response) => {
     const cleanTheme = typeof theme === 'string' ? theme.trim().slice(0, 20) : 'obsidian';
     const isPrivateBool = Boolean(isPrivate);
 
-    const videoInfo = await fetchYouTubeMetadata(videoId);
     const roomId = generateRoomId();
     const hostId = generateUserId();
     const hostColor = getRandomColor();
@@ -263,6 +521,7 @@ routeBoth('post', '/rooms', async (req: Request, res: Response) => {
     // Initial playback state
     const initialPlayback = {
       videoId,
+      provider: videoProvider,
       status: 'paused',
       position: 0,
       updatedAt: Date.now(),
@@ -272,8 +531,8 @@ routeBoth('post', '/rooms', async (req: Request, res: Response) => {
     // 2. Create Room in Neon DB
     await query(
       `INSERT INTO rooms (id, host_id, title, video_provider, video_id, is_private, passcode, is_locked, max_participants, theme, status, playback_state, created_at)
-       VALUES ($1, $2, $3, 'youtube', $4, $5, $6, false, 3, $7, 'active', $8, NOW())`,
-      [roomId, hostId, videoInfo.title, videoId, isPrivateBool, cleanPasscode, cleanTheme, JSON.stringify(initialPlayback)]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false, 3, $8, 'active', $9, NOW())`,
+      [roomId, hostId, resolved.title, videoProvider, videoId, isPrivateBool, cleanPasscode, cleanTheme, JSON.stringify(initialPlayback)]
     );
 
     // 3. Register host as room member
@@ -294,9 +553,10 @@ routeBoth('post', '/rooms', async (req: Request, res: Response) => {
     const metadata = {
       id: roomId,
       hostId,
-      title: videoInfo.title,
-      videoProvider: 'youtube',
+      title: resolved.title,
+      videoProvider,
       videoId,
+      videoUrl: resolved.url,
       isPrivate: isPrivateBool,
       passcode: cleanPasscode || undefined,
       isLocked: false,
@@ -312,6 +572,15 @@ routeBoth('post', '/rooms', async (req: Request, res: Response) => {
       hostId,
       token,
       metadata,
+      videoInfo: {
+        videoId,
+        title: resolved.title,
+        thumbnailUrl: resolved.thumbnailUrl,
+        authorName: resolved.authorName,
+        provider: videoProvider,
+      },
+      shareUrl: `/room/${roomId}`,
+    });
       videoInfo,
       shareUrl: `/room/${roomId}`,
     });
@@ -545,13 +814,16 @@ routeBoth('post', '/rooms/:id/video', async (req: Request, res: Response) => {
 
     let finalVideoId = videoId;
     let finalTitle = title;
-    if (videoUrl) {
-      const extracted = extractYouTubeId(videoUrl);
-      if (extracted) {
-        finalVideoId = extracted;
-        const meta = await fetchYouTubeMetadata(extracted);
-        finalTitle = meta.title;
-      }
+    let finalProvider = req.body.provider || 'youtube';
+
+    const inputUrl = videoUrl || (typeof videoId === 'string' && videoId.includes('/') ? videoId : '');
+    if (inputUrl) {
+      try {
+        const resolved = await resolveMediaUrl(inputUrl);
+        finalVideoId = resolved.videoId;
+        finalTitle = resolved.title || finalTitle;
+        finalProvider = resolved.provider;
+      } catch {}
     }
 
     if (!finalVideoId) {
@@ -561,6 +833,7 @@ routeBoth('post', '/rooms/:id/video', async (req: Request, res: Response) => {
 
     const newPlayback = {
       videoId: finalVideoId,
+      provider: finalProvider,
       status: 'playing',
       position: 0,
       updatedAt: Date.now(),
@@ -568,11 +841,11 @@ routeBoth('post', '/rooms/:id/video', async (req: Request, res: Response) => {
     };
 
     await query(
-      'UPDATE rooms SET video_id = $1, title = $2, playback_state = $3 WHERE id = $4',
-      [finalVideoId, finalTitle || 'YouTube Video', JSON.stringify(newPlayback), id]
+      'UPDATE rooms SET video_id = $1, title = $2, video_provider = $3, playback_state = $4 WHERE id = $5',
+      [finalVideoId, finalTitle || 'Watch Video', finalProvider, JSON.stringify(newPlayback), id]
     );
 
-    res.json({ success: true, videoId: finalVideoId, title: finalTitle, playback: newPlayback });
+    res.json({ success: true, videoId: finalVideoId, provider: finalProvider, title: finalTitle, playback: newPlayback });
   } catch (err: any) {
     res.status(500).json({ error: 'Error changing video' });
   }

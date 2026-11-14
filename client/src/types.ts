@@ -1,7 +1,17 @@
+export type VideoProviderType =
+  | 'youtube'
+  | 'direct'
+  | 'hls'
+  | 'vimeo'
+  | 'dailymotion'
+  | 'dash'
+  | 'twitch';
+
 export type PlaybackStatus = 'playing' | 'paused' | 'ended';
 
 export type PlaybackState = {
   videoId: string;
+  provider?: string;
   status: PlaybackStatus;
   position: number;
   updatedAt: number;
@@ -45,6 +55,7 @@ export type QueueItem = {
   id: string;
   roomId: string;
   videoId: string;
+  provider?: string;
   title: string;
   thumbnailUrl: string;
   addedBy: string;
@@ -58,6 +69,7 @@ export type RoomMetadata = {
   title: string;
   videoProvider: string;
   videoId: string;
+  videoUrl?: string;
   isPrivate: boolean;
   passcode?: string;
   isLocked: boolean;

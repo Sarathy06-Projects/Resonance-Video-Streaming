@@ -12,8 +12,10 @@ import {
   Radio,
   ArrowRight,
   Database,
+  Film,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { detectProviderQuick, PROVIDER_META } from '../utils/resolver';
 
 interface LandingPageProps {
   onRoomCreated: (roomId: string, token: string, hostName: string) => void;
@@ -98,15 +100,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   };
 
   const selectDemoVideo = (demo: any) => {
-    const url = `https://www.youtube.com/watch?v=${demo.videoId}`;
+    const url = demo.url || (demo.videoId?.startsWith('http') ? demo.videoId : `https://www.youtube.com/watch?v=${demo.videoId}`);
     setVideoUrl(url);
     setPreviewInfo({
       videoId: demo.videoId,
       title: demo.title,
       thumbnailUrl: demo.thumbnail,
       authorName: demo.channel,
+      provider: demo.provider,
     });
   };
+
+  const detected = detectProviderQuick(videoUrl);
+  const activeMeta = detected ? PROVIDER_META[detected.provider] : null;
 
   return (
     <div className="min-h-screen bg-dark-950 text-white flex flex-col">
@@ -130,8 +136,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </h1>
 
         <p className="text-base sm:text-lg text-gray-400 max-w-2xl mb-10 leading-relaxed">
-          Paste a YouTube link. Create a room. Invite your friends. Watch in real-time with
-          host-controlled synchronization, live chat, and floating reactions.
+          Paste any supported video link (YouTube, MP4, HLS, Vimeo, Dailymotion, DASH, Twitch).
+          Create a room. Invite your friends. Watch in real-time with flawless synchronization.
         </p>
 
         {/* Room Creation Box */}
@@ -139,15 +145,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <form onSubmit={handleCreateRoom} className="space-y-4">
             {/* Video URL Input */}
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1.5 uppercase tracking-wider">
-                1. Paste YouTube Video Link
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider">
+                  1. Paste Video Link
+                </label>
+                {activeMeta && (
+                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full border font-medium ${activeMeta.badgeBg}`}>
+                    {activeMeta.name}
+                  </span>
+                )}
+              </div>
               <div className="relative flex items-center">
                 <input
                   type="text"
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=... or youtu.be/..."
+                  placeholder="https://... (YouTube, MP4, .m3u8, Vimeo, Dailymotion, .mpd, Twitch)"
                   className="w-full bg-dark-800 border border-dark-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 outline-none focus:border-brand-500 transition-colors pr-10"
                 />
                 <Link2 className="w-4 h-4 text-gray-500 absolute right-3.5 pointer-events-none" />
@@ -164,7 +177,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-white truncate">{previewInfo.title}</p>
-                  <p className="text-[11px] text-gray-400 truncate mt-0.5">{previewInfo.authorName}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-[11px] text-gray-400 truncate">{previewInfo.authorName}</p>
+                    {previewInfo.provider && (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-brand-500/20 text-brand-300 uppercase font-mono">
+                        {previewInfo.provider}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mr-1" />
               </div>
@@ -232,7 +252,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 Or pick a quick demo video to test:
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {curatedDemos.slice(0, 3).map((demo) => (
+                {curatedDemos.map((demo) => (
                   <button
                     key={demo.videoId}
                     onClick={() => selectDemoVideo(demo)}

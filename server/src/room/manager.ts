@@ -3,6 +3,7 @@ import { RoomMetadata, QueueItem } from '../types';
 import { query } from '../db';
 import { generateRoomId, generateUserId, getRandomColor } from '../utils/auth';
 import { extractYouTubeId, fetchYouTubeMetadata } from '../utils/youtube';
+import { resolveMediaUrl } from '../utils/resolver';
 
 class RoomManager {
   private coordinators: Map<string, RoomCoordinator> = new Map();
@@ -89,12 +90,11 @@ class RoomManager {
     passcode?: string;
     theme?: string;
   }): Promise<{ roomId: string; hostId: string; coordinator: RoomCoordinator; videoInfo: any }> {
-    const videoId = extractYouTubeId(params.videoUrl);
-    if (!videoId) {
-      throw new Error('Invalid YouTube URL or video ID');
-    }
+    const videoInfo = await resolveMediaUrl(params.videoUrl);
+    const videoId = videoInfo.videoId;
+    const provider = videoInfo.provider;
+    const title = videoInfo.title;
 
-    const videoInfo = await fetchYouTubeMetadata(videoId);
     const roomId = generateRoomId();
     const hostId = generateUserId();
     const isPrivate = Boolean(params.isPrivate);
@@ -112,15 +112,15 @@ class RoomManager {
     // 2. Persist room in Neon DB
     await query(
       `INSERT INTO rooms (id, host_id, title, video_provider, video_id, is_private, passcode, is_locked, max_participants, theme, status, created_at)
-       VALUES ($1, $2, $3, 'youtube', $4, $5, $6, false, 3, $7, 'active', NOW())`,
-      [roomId, hostId, videoInfo.title, videoId, isPrivate, passcode, theme]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false, 3, $8, 'active', NOW())`,
+      [roomId, hostId, title, provider, videoId, isPrivate, passcode, theme]
     );
 
     const metadata: RoomMetadata = {
       id: roomId,
       hostId,
-      title: videoInfo.title,
-      videoProvider: 'youtube',
+      title,
+      videoProvider: provider,
       videoId,
       isPrivate,
       passcode: passcode || undefined,

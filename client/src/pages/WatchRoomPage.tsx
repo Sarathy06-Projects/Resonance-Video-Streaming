@@ -166,6 +166,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
   };
 
   const currentVideoId = playbackState?.videoId || metadata?.videoId || 'aqz-KE-bpKQ';
+  const currentProvider = (playbackState?.provider || metadata?.videoProvider || 'youtube') as any;
 
   const getThemeClass = (theme: string) => {
     switch (theme) {
@@ -288,6 +289,8 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
           <div className="w-full aspect-video rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl bg-black border border-dark-800">
             <VideoPlayer
               videoId={currentVideoId}
+              provider={currentProvider}
+              videoUrl={metadata?.videoUrl || currentVideoId}
               isHost={isHost}
               hostName={hostDisplayName}
               authoritativePlayback={playbackState}
@@ -491,7 +494,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
       <ChangeVideoModal
         isOpen={isChangeVideoOpen}
         onClose={() => setIsChangeVideoOpen(false)}
-        onChangeVideo={(vid, title) => emitVideoChange(vid, title)}
+        onChangeVideo={(vid, title, prov) => emitVideoChange(vid, title, prov)}
       />
     </div>
   );

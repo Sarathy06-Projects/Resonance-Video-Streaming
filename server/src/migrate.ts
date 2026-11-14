@@ -85,6 +85,7 @@ const schemaStatements = [
   `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS call_host_name VARCHAR;`,
   `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS call_host_id VARCHAR;`,
   `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS call_participants JSONB DEFAULT '[]'::jsonb;`,
+  `ALTER TABLE video_queue ADD COLUMN IF NOT EXISTS video_provider VARCHAR DEFAULT 'youtube';`,
   `CREATE TABLE IF NOT EXISTS room_signals (
     id SERIAL PRIMARY KEY,
     room_id VARCHAR REFERENCES rooms(id) ON DELETE CASCADE,

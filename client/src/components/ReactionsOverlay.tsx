@@ -3,7 +3,7 @@ import { Reaction } from '../types';
 
 interface ReactionsOverlayProps {
   reactions: Reaction[];
-  onTriggerReaction: (emoji: string, type: string) => void;
+  onTriggerReaction?: (emoji: string, type: string) => void;
 }
 
 interface FloatingEmoji {

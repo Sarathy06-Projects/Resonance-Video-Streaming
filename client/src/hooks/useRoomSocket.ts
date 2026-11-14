@@ -361,13 +361,13 @@ export function useRoomSocket({
           }
 
           case 'video:change': {
-            const { videoId, title, position, status } = roomEvent.payload;
+            const { videoId, title, position, status, provider } = roomEvent.payload;
             setPlaybackState((prev) =>
               prev
-                ? { ...prev, videoId, position: position || 0, status: status || 'playing', updatedAt: Date.now() }
+                ? { ...prev, videoId, provider: provider || prev.provider, position: position || 0, status: status || 'playing', updatedAt: Date.now() }
                 : null
             );
-            setMetadata((prev) => (prev ? { ...prev, videoId, title: title || prev.title } : null));
+            setMetadata((prev) => (prev ? { ...prev, videoId, videoProvider: provider || prev.videoProvider, title: title || prev.title } : null));
             callbacksRef.current.onVideoChange?.(videoId, title);
             break;
           }
@@ -575,7 +575,7 @@ export function useRoomSocket({
         fetch(`/api/rooms/${roomId}/video`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, videoId: payload.videoId, title: payload.title }),
+          body: JSON.stringify({ token, videoId: payload.videoId, title: payload.title, provider: payload.provider }),
         }).catch(() => {});
       } else if (type === 'call:start') {
         fetch(`/api/rooms/${roomId}/call`, {
@@ -706,7 +706,7 @@ export function useRoomSocket({
   const emitSeek = useCallback((position: number) => send('playback:seek', { position }), [send]);
   const emitRate = useCallback((playbackRate: number) => send('playback:rate', { playbackRate }), [send]);
   const emitVideoChange = useCallback(
-    (videoId: string, title?: string) => send('video:change', { videoId, title }),
+    (videoId: string, title?: string, provider?: string) => send('video:change', { videoId, title, provider }),
     [send]
   );
   const emitReaction = useCallback(
