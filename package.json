@@ -1,0 +1,23 @@
+{
+  "name": "together-watch-party",
+  "version": "1.0.0",
+  "description": "Together - Serverless Watch-Party Platform with Synchronized Playback and Neon Database",
+  "scripts": {
+    "build:client": "npm --prefix client run build",
+    "build:server": "npm --prefix server run build",
+    "build": "npm run build:client && npm run build:server",
+    "start": "npm --prefix server run start",
+    "test": "npm --prefix server run test",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev"
+  },
+  "keywords": [
+    "watch-party",
+    "neon-db",
+    "realtime",
+    "websockets",
+    "youtube-sync"
+  ],
+  "author": "Together Team",
+  "license": "MIT"
+}
