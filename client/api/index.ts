@@ -3,6 +3,7 @@ import cors from 'cors';
 import { Pool } from 'pg';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { AccessToken, TrackSource } from 'livekit-server-sdk';
 
 const app = express();
 
@@ -594,6 +595,13 @@ routeBoth('post', '/rooms/:id/chat', async (req: Request, res: Response) => {
       return;
     }
 
+    // Verify room exists
+    const rCheck = await query('SELECT id FROM rooms WHERE id = $1', [id]);
+    if (rCheck.rows.length === 0) {
+      res.status(404).json({ error: 'Room not found' });
+      return;
+    }
+
     const msgId = 'msg_' + crypto.randomBytes(6).toString('hex');
     await query(
       `INSERT INTO room_messages (id, room_id, sender_id, sender_name, sender_role, message, created_at)
@@ -612,6 +620,7 @@ routeBoth('post', '/rooms/:id/chat', async (req: Request, res: Response) => {
         senderColor: decoded.color || '#6366f1',
         text: cleanText,
         timestamp: Date.now(),
+        status: 'sent',
       },
     });
   } catch (err: any) {
@@ -619,45 +628,50 @@ routeBoth('post', '/rooms/:id/chat', async (req: Request, res: Response) => {
   }
 });
 
-// 12. Video Call Management (Host starts/ends; participants join/leave)
+// 12. Video / Audio Call Management (Creator starts/ends; participants join/leave)
 routeBoth('post', '/rooms/:id/call', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { token, action } = req.body;
+    const { token, action, mode } = req.body;
     const decoded = verifySessionToken(token);
     if (!decoded || decoded.roomId !== id) {
       res.status(401).json({ error: 'Unauthorized session' });
       return;
     }
 
-    const rRes = await query('SELECT is_call_active, call_participants, call_host_name, host_id FROM rooms WHERE id = $1', [id]);
+    const rRes = await query('SELECT is_call_active, call_mode, call_participants, call_host_name, host_id FROM rooms WHERE id = $1', [id]);
     if (rRes.rows.length === 0) {
       res.status(404).json({ error: 'Room not found' });
       return;
     }
     const room = rRes.rows[0];
     let participants: string[] = Array.isArray(room.call_participants) ? room.call_participants : [];
+    const callMode = mode === 'audio' ? 'audio' : 'video';
 
     if (action === 'start') {
       if (decoded.role !== 'host') {
-        res.status(403).json({ error: 'Only host can start a group call' });
+        res.status(403).json({ error: 'Only the room creator can initiate a group call' });
         return;
       }
       participants = [decoded.userId];
       await query(
-        'UPDATE rooms SET is_call_active = true, call_host_name = $1, call_participants = $2 WHERE id = $3',
-        [decoded.name, JSON.stringify(participants), id]
+        'UPDATE rooms SET is_call_active = true, call_mode = $1, call_host_name = $2, call_host_id = $3, call_participants = $4 WHERE id = $5',
+        [callMode, decoded.name, decoded.userId, JSON.stringify(participants), id]
       );
     } else if (action === 'end') {
       if (decoded.role !== 'host') {
-        res.status(403).json({ error: 'Only host can end a group call' });
+        res.status(403).json({ error: 'Only the creator can end the call for everyone' });
         return;
       }
       await query(
-        'UPDATE rooms SET is_call_active = false, call_participants = \'[]\'::jsonb WHERE id = $1',
+        "UPDATE rooms SET is_call_active = false, call_mode = NULL, call_participants = '[]'::jsonb WHERE id = $1",
         [id]
       );
     } else if (action === 'join') {
+      if (!room.is_call_active) {
+        res.status(400).json({ error: 'No active call to join' });
+        return;
+      }
       if (!participants.includes(decoded.userId)) {
         participants.push(decoded.userId);
         await query(
@@ -667,15 +681,87 @@ routeBoth('post', '/rooms/:id/call', async (req: Request, res: Response) => {
       }
     } else if (action === 'leave') {
       participants = participants.filter((p) => p !== decoded.userId);
+      const stillActive = participants.length > 0;
       await query(
-        'UPDATE rooms SET call_participants = $1 WHERE id = $2',
-        [JSON.stringify(participants), id]
+        'UPDATE rooms SET is_call_active = $1, call_participants = $2 WHERE id = $3',
+        [stillActive, JSON.stringify(participants), id]
       );
     }
 
-    res.json({ success: true, isCallActive: action === 'start' ? true : action === 'end' ? false : room.is_call_active, callParticipants: participants });
+    res.json({
+      success: true,
+      isCallActive: action === 'start' ? true : action === 'end' ? false : room.is_call_active,
+      callMode: action === 'start' ? callMode : room.call_mode,
+      callParticipants: participants,
+    });
   } catch (err: any) {
     res.status(500).json({ error: 'Error managing call' });
+  }
+});
+
+// 12b. LiveKit Calling Access Token Issuer (Phase 3, 4, 5)
+routeBoth('post', '/rooms/:id/call/token', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, mode: requestedMode } = req.body;
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session' });
+      return;
+    }
+
+    // Verify room exists and active
+    const rRes = await query('SELECT is_call_active, call_mode, host_id FROM rooms WHERE id = $1', [id]);
+    if (rRes.rows.length === 0) {
+      res.status(404).json({ error: 'Room not found' });
+      return;
+    }
+    const room = rRes.rows[0];
+    const mode = room.call_mode || (requestedMode === 'audio' ? 'audio' : 'video');
+
+    const livekitUrl = process.env.LIVEKIT_URL;
+    const apiKey = process.env.LIVEKIT_API_KEY;
+    const apiSecret = process.env.LIVEKIT_API_SECRET;
+
+    if (livekitUrl && apiKey && apiSecret) {
+      // Issue short-lived, least-privilege token (15m TTL)
+      const at = new AccessToken(apiKey, apiSecret, {
+        identity: decoded.userId,
+        name: decoded.name,
+        ttl: '15m',
+      });
+
+      // Strict server-side permission enforcement:
+      // In audio mode: microphone track publishing only. Video track publishing is disabled!
+      at.addGrant({
+        room: id,
+        roomJoin: true,
+        canPublish: true,
+        canSubscribe: true,
+        canPublishData: true,
+        canPublishSources: mode === 'audio' ? [TrackSource.MICROPHONE] : [TrackSource.CAMERA, TrackSource.MICROPHONE],
+      });
+
+      const livekitJwt = await at.toJwt();
+      res.json({
+        success: true,
+        provider: 'livekit',
+        url: livekitUrl,
+        token: livekitJwt,
+        mode,
+      });
+      return;
+    }
+
+    // Fallback response if LiveKit Cloud credentials are not configured in environment
+    res.json({
+      success: true,
+      provider: 'fallback',
+      mode,
+    });
+  } catch (err: any) {
+    console.error('[POST /api/rooms/:id/call/token] Error:', err);
+    res.status(500).json({ error: 'Error generating call token' });
   }
 });
 
@@ -763,16 +849,28 @@ routeBoth('get', '/rooms/:id/poll', async (req: Request, res: Response) => {
     }));
 
     // Recent chat messages
-    const sinceDate = new Date(since);
-    const chatRes = await query(
-      `SELECT rm.id, rm.room_id, rm.sender_id, rm.sender_name, rm.sender_role, rm.message, rm.created_at, u.avatar_color
-       FROM room_messages rm
-       LEFT JOIN users u ON rm.sender_id = u.id
-       WHERE rm.room_id = $1 AND rm.created_at > $2
-       ORDER BY rm.created_at ASC
-       LIMIT 50`,
-      [id, sinceDate]
-    );
+    let chatRes;
+    if (since > 0) {
+      chatRes = await query(
+        `SELECT rm.id, rm.room_id, rm.sender_id, rm.sender_name, rm.sender_role, rm.message, rm.created_at, u.avatar_color
+         FROM room_messages rm
+         LEFT JOIN users u ON rm.sender_id = u.id
+         WHERE rm.room_id = $1 AND rm.created_at >= to_timestamp($2 / 1000.0) - INTERVAL '1 second'
+         ORDER BY rm.created_at ASC
+         LIMIT 50`,
+        [id, since]
+      );
+    } else {
+      chatRes = await query(
+        `SELECT rm.id, rm.room_id, rm.sender_id, rm.sender_name, rm.sender_role, rm.message, rm.created_at, u.avatar_color
+         FROM room_messages rm
+         LEFT JOIN users u ON rm.sender_id = u.id
+         WHERE rm.room_id = $1
+         ORDER BY rm.created_at ASC
+         LIMIT 50`,
+        [id]
+      );
+    }
     const recentChat = chatRes.rows.map((m) => ({
       id: m.id,
       roomId: m.room_id,
@@ -843,6 +941,7 @@ routeBoth('get', '/rooms/:id/poll', async (req: Request, res: Response) => {
       recentChat,
       queue,
       isCallActive: Boolean(room.is_call_active),
+      callMode: room.call_mode || 'video',
       callParticipants,
       callHostName: room.call_host_name || 'Host',
       signals,

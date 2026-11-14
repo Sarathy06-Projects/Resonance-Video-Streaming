@@ -81,7 +81,9 @@ const schemaStatements = [
   // Serverless sync columns & WebRTC signaling
   `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS playback_state JSONB;`,
   `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS is_call_active BOOLEAN DEFAULT FALSE;`,
+  `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS call_mode VARCHAR DEFAULT 'video';`,
   `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS call_host_name VARCHAR;`,
+  `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS call_host_id VARCHAR;`,
   `ALTER TABLE rooms ADD COLUMN IF NOT EXISTS call_participants JSONB DEFAULT '[]'::jsonb;`,
   `CREATE TABLE IF NOT EXISTS room_signals (
     id SERIAL PRIMARY KEY,

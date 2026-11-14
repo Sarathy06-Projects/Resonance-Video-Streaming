@@ -21,7 +21,7 @@ interface UseRoomSocketProps {
   onNewReaction?: (reaction: Reaction) => void;
   onKicked?: (message: string) => void;
   onRoomClosed?: (reason: string) => void;
-  onCallStarted?: (hostName: string, callParticipants: string[]) => void;
+  onCallStarted?: (hostName: string, callParticipants: string[], mode: 'audio' | 'video') => void;
   onCallEnded?: () => void;
   onCallParticipantJoined?: (participantId: string, callParticipants: string[]) => void;
   onCallParticipantLeft?: (participantId: string, callParticipants: string[]) => void;
@@ -64,6 +64,7 @@ export function useRoomSocket({
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [isCallActive, setIsCallActive] = useState<boolean>(false);
   const isCallActiveRef = useRef<boolean>(false);
+  const [callMode, setCallMode] = useState<'audio' | 'video' | null>('video');
   const [callParticipants, setCallParticipants] = useState<string[]>([]);
   const [callHostName, setCallHostName] = useState<string>('');
   const reconnectAttemptsRef = useRef(0);
@@ -103,8 +104,10 @@ export function useRoomSocket({
 
       // Call state
       if (typeof data.isCallActive === 'boolean') {
+        const mode = data.callMode || 'video';
+        setCallMode(mode);
         if (data.isCallActive && !isCallActiveRef.current) {
-          onCallStarted?.(data.callHostName || 'Creator', data.callParticipants || []);
+          onCallStarted?.(data.callHostName || 'Creator', data.callParticipants || [], mode);
         } else if (!data.isCallActive && isCallActiveRef.current) {
           onCallEnded?.();
         }
@@ -120,22 +123,29 @@ export function useRoomSocket({
         }
       }
 
-      // Chat Messages
+      // Chat Messages with deduplication and unread arrival
       if (Array.isArray(data.recentChat) && data.recentChat.length > 0) {
-        const newMsgs = data.recentChat.filter(
-          (m: ChatMessage) => m.timestamp > lastChatTimestampRef.current
-        );
-        if (newMsgs.length > 0) {
-          lastChatTimestampRef.current = Math.max(
-            ...newMsgs.map((m: ChatMessage) => m.timestamp)
+        setChatMessages((prev) => {
+          const existingIds = new Set(
+            prev.filter((m) => m.status !== 'failed').map((m) => m.id)
           );
-          setChatMessages((prev) => {
-            const existingIds = new Set(prev.map((m) => m.id));
-            const fresh = newMsgs.filter((m: ChatMessage) => !existingIds.has(m.id));
-            return [...prev, ...fresh];
+          const newFromOther = data.recentChat.filter(
+            (m: ChatMessage) => !existingIds.has(m.id)
+          );
+          if (newFromOther.length === 0) return prev;
+
+          // Update latest timestamp cursor
+          newFromOther.forEach((m: ChatMessage) => {
+            lastChatTimestampRef.current = Math.max(lastChatTimestampRef.current, m.timestamp);
+            onNewChat?.(m);
           });
-          newMsgs.forEach((m: ChatMessage) => onNewChat?.(m));
-        }
+
+          // Retain failed messages while merging new ones
+          const stable = prev.filter(
+            (m) => !m.id.startsWith('temp_') || m.status === 'failed'
+          );
+          return [...stable, ...newFromOther];
+        });
       }
 
       // Playback State Sync
@@ -145,7 +155,11 @@ export function useRoomSocket({
 
         // Video Change check
         if (sPb.videoId && cPb?.videoId && sPb.videoId !== cPb.videoId) {
-          setMetadata((prev) => (prev ? { ...prev, videoId: sPb.videoId, title: data.metadata?.title || prev.title } : null));
+          setMetadata((prev) =>
+            prev
+              ? { ...prev, videoId: sPb.videoId, title: data.metadata?.title || prev.title }
+              : null
+          );
           onVideoChange?.(sPb.videoId, data.metadata?.title);
         }
 
@@ -179,7 +193,7 @@ export function useRoomSocket({
     // Start polling immediately to ensure instant room state
     pollRoom();
     if (!pollTimerRef.current) {
-      pollTimerRef.current = setInterval(pollRoom, 1500);
+      pollTimerRef.current = setInterval(pollRoom, 1200);
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -187,13 +201,12 @@ export function useRoomSocket({
     const wsUrl = `${protocol}//${host}/api/rooms/${roomId}/connect?token=${encodeURIComponent(token)}`;
 
     setConnectionStatus((prev) => (prev === 'connected' ? 'reconnecting' : 'connecting'));
-    
+
     let ws: WebSocket;
     try {
       ws = new WebSocket(wsUrl);
       wsRef.current = ws;
     } catch {
-      // WebSocket creation failed (e.g. unsupported platform) -> fallback to HTTP sync
       setConnectionStatus('connected');
       return;
     }
@@ -208,7 +221,7 @@ export function useRoomSocket({
         const roomEvent: RoomEvent = JSON.parse(event.data);
         switch (roomEvent.type) {
           case 'room:state': {
-            const { metadata, hostId, playback, participants, recentChat, queue, isCallActive, callParticipants } =
+            const { metadata, hostId, playback, participants, recentChat, queue, isCallActive, callParticipants, callMode: cMode } =
               roomEvent.payload;
             if (metadata) {
               setMetadata(metadata);
@@ -227,6 +240,7 @@ export function useRoomSocket({
             }
             if (queue) setQueue(queue);
             if (typeof isCallActive === 'boolean') setIsCallActive(isCallActive);
+            if (cMode) setCallMode(cMode);
             if (Array.isArray(callParticipants)) setCallParticipants(callParticipants);
             break;
           }
@@ -281,7 +295,7 @@ export function useRoomSocket({
             setPlaybackState((prev) => ({
               videoId: prev?.videoId || '',
               status: prev?.status || 'playing',
-              position: typeof position === 'number' ? position : (prev?.position || 0),
+              position: typeof position === 'number' ? position : prev?.position || 0,
               updatedAt: Date.now(),
               playbackRate: playbackRate || 1.0,
               sequence: prev?.sequence || 0,
@@ -305,7 +319,11 @@ export function useRoomSocket({
 
           case 'chat:message': {
             const msg: ChatMessage = roomEvent.payload.message;
-            setChatMessages((prev) => [...prev.slice(-99), msg]);
+            setChatMessages((prev) => {
+              const existing = prev.some((m) => m.id === msg.id);
+              if (existing) return prev;
+              return [...prev, { ...msg, status: 'sent' }];
+            });
             lastChatTimestampRef.current = Math.max(lastChatTimestampRef.current, msg.timestamp);
             onNewChat?.(msg);
             break;
@@ -370,11 +388,13 @@ export function useRoomSocket({
           }
 
           case 'call:started': {
-            const { hostName, callParticipants } = roomEvent.payload;
+            const { hostName, callParticipants, callMode: cMode } = roomEvent.payload;
+            const mode = cMode === 'audio' ? 'audio' : 'video';
             setIsCallActive(true);
+            setCallMode(mode);
             setCallHostName(hostName || 'Creator');
             setCallParticipants(callParticipants || []);
-            onCallStarted?.(hostName, callParticipants || []);
+            onCallStarted?.(hostName, callParticipants || [], mode);
             break;
           }
 
@@ -382,6 +402,7 @@ export function useRoomSocket({
             setIsCallActive(false);
             setCallParticipants([]);
             setCallHostName('');
+            setCallMode(null);
             onCallEnded?.();
             break;
           }
@@ -421,7 +442,6 @@ export function useRoomSocket({
         setConnectionStatus('kicked');
         return;
       }
-      // On close, maintain connected status via HTTP Polling fallback
       setConnectionStatus('connected');
 
       if (reconnectAttemptsRef.current < 3) {
@@ -434,7 +454,6 @@ export function useRoomSocket({
     };
 
     ws.onerror = () => {
-      // If WebSocket fails, stay connected via HTTP sync
       setConnectionStatus('connected');
     };
   }, [
@@ -528,31 +547,11 @@ export function useRoomSocket({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token, videoId: payload.videoId, title: payload.title }),
         }).catch(() => {});
-      } else if (type === 'chat:message') {
-        fetch(`/api/rooms/${roomId}/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, text: payload.text }),
-        })
-          .then(async (res) => {
-            if (res.ok) {
-              const d = await res.json();
-              if (d.message) {
-                setChatMessages((prev) => [...prev, d.message]);
-                lastChatTimestampRef.current = Math.max(
-                  lastChatTimestampRef.current,
-                  d.message.timestamp
-                );
-                onNewChat?.(d.message);
-              }
-            }
-          })
-          .catch(() => {});
       } else if (type === 'call:start') {
         fetch(`/api/rooms/${roomId}/call`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, action: 'start' }),
+          body: JSON.stringify({ token, action: 'start', mode: payload.mode || 'video' }),
         }).catch(() => {});
       } else if (type === 'call:end') {
         fetch(`/api/rooms/${roomId}/call`, {
@@ -584,7 +583,92 @@ export function useRoomSocket({
         }).catch(() => {});
       }
     },
-    [roomId, token, onNewChat]
+    [roomId, token]
+  );
+
+  // Optimistic chat message sender with delivery status
+  const emitChatMessage = useCallback(
+    async (text: string): Promise<boolean> => {
+      const cleanText = text.trim();
+      if (!cleanText) return false;
+      const tempId = 'temp_' + Math.random().toString(36).substring(2, 9);
+      const tempMsg: ChatMessage = {
+        id: tempId,
+        roomId,
+        senderId: 'me',
+        senderName: 'You',
+        senderRole: 'guest',
+        senderColor: '#6366f1',
+        text: cleanText,
+        timestamp: Date.now(),
+        status: 'sending',
+      };
+
+      setChatMessages((prev) => [...prev, tempMsg]);
+
+      try {
+        const res = await fetch(`/api/rooms/${roomId}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, text: cleanText }),
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to send message');
+        }
+
+        const data = await res.json();
+        if (data.success && data.message) {
+          setChatMessages((prev) =>
+            prev.map((m) => (m.id === tempId ? { ...data.message, status: 'sent' } : m))
+          );
+          lastChatTimestampRef.current = Math.max(
+            lastChatTimestampRef.current,
+            data.message.timestamp
+          );
+          return true;
+        } else {
+          throw new Error('Invalid response');
+        }
+      } catch {
+        setChatMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m))
+        );
+        return false;
+      }
+    },
+    [roomId, token]
+  );
+
+  // Retry sending failed message
+  const emitRetryMessage = useCallback(
+    async (failedMsg: ChatMessage): Promise<boolean> => {
+      setChatMessages((prev) =>
+        prev.map((m) => (m.id === failedMsg.id ? { ...m, status: 'sending' } : m))
+      );
+      try {
+        const res = await fetch(`/api/rooms/${roomId}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, text: failedMsg.text }),
+        });
+        if (!res.ok) throw new Error('Retry failed');
+        const data = await res.json();
+        if (data.success && data.message) {
+          setChatMessages((prev) =>
+            prev.map((m) => (m.id === failedMsg.id ? { ...data.message, status: 'sent' } : m))
+          );
+          return true;
+        }
+        throw new Error('Invalid data');
+      } catch {
+        setChatMessages((prev) =>
+          prev.map((m) => (m.id === failedMsg.id ? { ...m, status: 'failed' } : m))
+        );
+        return false;
+      }
+    },
+    [roomId, token]
   );
 
   const emitPlay = useCallback((position: number) => send('playback:play', { position }), [send]);
@@ -595,7 +679,6 @@ export function useRoomSocket({
     (videoId: string, title?: string) => send('video:change', { videoId, title }),
     [send]
   );
-  const emitChatMessage = useCallback((text: string) => send('chat:message', { text }), [send]);
   const emitReaction = useCallback(
     (emoji: string, type: string) => send('reaction:send', { emoji, type }),
     [send]
@@ -617,8 +700,11 @@ export function useRoomSocket({
   const emitRemoveFromQueue = useCallback((itemId: string) => send('queue:remove', { itemId }), [send]);
   const emitPlayNextQueue = useCallback(() => send('queue:next', {}), [send]);
 
-  // Video Call Emitters
-  const emitStartCall = useCallback(() => send('call:start', {}), [send]);
+  // Video & Audio Call Emitters (Creator selects mode)
+  const emitStartCall = useCallback(
+    (mode: 'audio' | 'video' = 'video') => send('call:start', { mode }),
+    [send]
+  );
   const emitEndCall = useCallback(() => send('call:end', {}), [send]);
   const emitJoinCall = useCallback(() => send('call:join', {}), [send]);
   const emitLeaveCall = useCallback(() => send('call:leave', {}), [send]);
@@ -644,6 +730,7 @@ export function useRoomSocket({
     reactions,
     isLocked,
     isCallActive,
+    callMode,
     callParticipants,
     callHostName,
     emitPlay,
@@ -652,6 +739,7 @@ export function useRoomSocket({
     emitRate,
     emitVideoChange,
     emitChatMessage,
+    emitRetryMessage,
     emitReaction,
     emitTransferHost,
     emitKickMember,

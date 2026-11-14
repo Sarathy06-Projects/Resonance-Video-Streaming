@@ -16,7 +16,7 @@ import {
   Video,
 } from 'lucide-react';
 import { useRoomSocket } from '../hooks/useRoomSocket';
-import { useVideoCall } from '../hooks/useVideoCall';
+import { useLiveKitCall, CallMode } from '../hooks/useLiveKitCall';
 import { VideoPlayer } from '../components/VideoPlayer';
 import { LiveChat } from '../components/LiveChat';
 import { ParticipantsList } from '../components/ParticipantsList';
@@ -47,19 +47,6 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
   const [isChangeVideoOpen, setIsChangeVideoOpen] = useState(false);
   const [roomTheme, setRoomTheme] = useState('obsidian');
 
-  // References for video call handlers before useRoomSocket initialization
-  const videoCallHandlersRef = useRef<{
-    handleIncomingSignal: (senderId: string, payload: any) => void;
-    handleParticipantJoined: (participantId: string) => void;
-    handleParticipantLeft: (participantId: string) => void;
-    handleRemoteMediaState: (participantId: string, isMuted: boolean, isCameraOff: boolean) => void;
-  }>({
-    handleIncomingSignal: () => {},
-    handleParticipantJoined: () => {},
-    handleParticipantLeft: () => {},
-    handleRemoteMediaState: () => {},
-  });
-
   const {
     connectionStatus,
     metadata,
@@ -71,6 +58,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     reactions,
     isLocked,
     isCallActive,
+    callMode,
     callParticipants,
     callHostName,
     emitPlay,
@@ -79,6 +67,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     emitRate,
     emitVideoChange,
     emitChatMessage,
+    emitRetryMessage,
     emitReaction,
     emitTransferHost,
     emitKickMember,
@@ -90,8 +79,6 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     emitEndCall,
     emitJoinCall,
     emitLeaveCall,
-    emitCallSignal,
-    emitMediaState,
   } = useRoomSocket({
     roomId,
     token,
@@ -102,18 +89,6 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     onRoomClosed: (reason) => {
       alert(reason || 'The room has ended.');
       onLeaveRoom();
-    },
-    onCallSignal: (senderId, payload) => {
-      videoCallHandlersRef.current.handleIncomingSignal(senderId, payload);
-    },
-    onCallParticipantJoined: (pId) => {
-      videoCallHandlersRef.current.handleParticipantJoined(pId);
-    },
-    onCallParticipantLeft: (pId) => {
-      videoCallHandlersRef.current.handleParticipantLeft(pId);
-    },
-    onCallMediaState: (pId, isMuted, isCameraOff) => {
-      videoCallHandlersRef.current.handleRemoteMediaState(pId, isMuted, isCameraOff);
     },
   });
 
@@ -143,45 +118,35 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
   const hostParticipant = participants.find((p) => p.role === 'host' || p.id === hostId);
   const hostDisplayName = hostParticipant ? hostParticipant.name : (session?.role === 'host' ? effectiveUserName : callHostName || 'Host');
 
-  // Video call hook
+  // Unified LiveKit Calling Hook (First-class Audio & Video Calling)
   const {
     isInCall,
-    localStream,
-    remoteStreams,
-    mediaStates,
+    activeCallMode,
+    isConnecting,
+    callError,
     isMicMuted,
     isCameraOff,
+    localStream,
+    remoteStreams,
+    speakingParticipants,
     joinCall,
     leaveCall,
     toggleMic,
     toggleCamera,
-    handleIncomingSignal,
-    handleParticipantJoined,
-    handleParticipantLeft,
-    handleRemoteMediaState,
-  } = useVideoCall({
+  } = useLiveKitCall({
+    roomId,
+    token,
     currentUserId,
     currentUserName: userName,
     isCallActive,
+    callMode,
     callParticipants,
-    onEmitSignal: emitCallSignal,
-    onEmitMediaState: emitMediaState,
   });
 
-  // Keep handlers updated in ref
-  useEffect(() => {
-    videoCallHandlersRef.current = {
-      handleIncomingSignal,
-      handleParticipantJoined,
-      handleParticipantLeft,
-      handleRemoteMediaState,
-    };
-  }, [handleIncomingSignal, handleParticipantJoined, handleParticipantLeft, handleRemoteMediaState]);
-
-  const handleStartCall = async () => {
+  const handleStartCall = async (mode: CallMode) => {
     if (!isHost) return;
-    emitStartCall();
-    await joinCall();
+    emitStartCall(mode);
+    await joinCall(mode);
   };
 
   const handleEndCall = () => {
@@ -190,9 +155,9 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     emitEndCall();
   };
 
-  const handleJoinCall = async () => {
+  const handleJoinCall = async (mode?: CallMode) => {
     emitJoinCall();
-    await joinCall();
+    await joinCall(mode || callMode || 'video');
   };
 
   const handleLeaveCall = () => {
@@ -272,7 +237,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
           {/* Creator-only "Start Group Call" quick trigger if call is not active yet */}
           {isHost && !isCallActive && (
             <button
-              onClick={handleStartCall}
+              onClick={() => handleStartCall('video')}
               className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/35 px-2.5 sm:px-3 py-1.5 rounded-lg transition-all hover:scale-[1.02]"
               title="Start a group video call for the room"
             >
@@ -337,15 +302,18 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
             />
           </div>
 
-          {/* Live Group Video Call Section: See faces and watch video together */}
+          {/* Live Group Calling Section: Unified Audio and Video Calling */}
           <VideoCallGrid
             isCallActive={isCallActive}
+            callMode={callMode}
             isInCall={isInCall}
+            isConnecting={isConnecting}
+            callError={callError}
             isHost={isHost}
             hostName={hostDisplayName}
             localStream={localStream}
             remoteStreams={remoteStreams}
-            mediaStates={mediaStates}
+            speakingParticipants={speakingParticipants}
             isMicMuted={isMicMuted}
             isCameraOff={isCameraOff}
             participants={participants}
@@ -459,8 +427,10 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
               <LiveChat
                 messages={chatMessages}
                 currentUserId={currentUserId}
+                connectionStatus={connectionStatus}
                 onSendMessage={(text) => emitChatMessage(text)}
                 onSendReaction={(emoji, type) => emitReaction(emoji, type)}
+                onRetryMessage={(msg) => emitRetryMessage(msg)}
               />
             )}
 

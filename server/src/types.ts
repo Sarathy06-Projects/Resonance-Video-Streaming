@@ -29,6 +29,7 @@ export type ChatMessage = {
   senderColor: string;
   text: string;
   timestamp: number;
+  status?: 'sending' | 'sent' | 'failed';
 };
 
 export type Reaction = {

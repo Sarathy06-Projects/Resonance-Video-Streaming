@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { AccessToken, TrackSource } from 'livekit-server-sdk';
 import { roomManager } from '../room/manager';
 import {
   extractYouTubeId,
@@ -473,32 +474,33 @@ router.post('/:id/chat', async (req: Request, res: Response) => {
 router.post('/:id/call', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { token, action } = req.body;
+    const { token, action, mode } = req.body;
     const decoded = verifySessionToken(token);
     if (!decoded || decoded.roomId !== id) {
       res.status(401).json({ error: 'Unauthorized session' });
       return;
     }
 
-    const rRes = await query('SELECT is_call_active, call_participants, call_host_name FROM rooms WHERE id = $1', [id]);
+    const rRes = await query('SELECT is_call_active, call_mode, call_participants, call_host_name, host_id FROM rooms WHERE id = $1', [id]);
     if (rRes.rows.length === 0) {
       res.status(404).json({ error: 'Room not found' });
       return;
     }
     const room = rRes.rows[0];
     let participants: string[] = Array.isArray(room.call_participants) ? room.call_participants : [];
+    const callMode = mode === 'audio' ? 'audio' : 'video';
 
     const coordinator = await roomManager.getCoordinator(id);
 
     if (action === 'start') {
       if (decoded.role !== 'host') {
-        res.status(403).json({ error: 'Only host can start a group call' });
+        res.status(403).json({ error: 'Only the room creator can initiate a group call' });
         return;
       }
       participants = [decoded.userId];
       await query(
-        'UPDATE rooms SET is_call_active = true, call_host_name = $1, call_participants = $2 WHERE id = $3',
-        [decoded.name, JSON.stringify(participants), id]
+        'UPDATE rooms SET is_call_active = true, call_mode = $1, call_host_name = $2, call_host_id = $3, call_participants = $4 WHERE id = $5',
+        [callMode, decoded.name, decoded.userId, JSON.stringify(participants), id]
       );
       if (coordinator) {
         coordinator.isCallActive = true;
@@ -510,15 +512,15 @@ router.post('/:id/call', async (req: Request, res: Response) => {
           senderId: decoded.userId,
           sequence: coordinator.getNextSequence(),
           sentAt: Date.now(),
-          payload: { hostName: decoded.name, callParticipants: [decoded.userId] },
+          payload: { hostName: decoded.name, callMode, callParticipants: [decoded.userId] },
         });
       }
     } else if (action === 'end') {
       if (decoded.role !== 'host') {
-        res.status(403).json({ error: 'Only host can end a group call' });
+        res.status(403).json({ error: 'Only the creator can end the call for everyone' });
         return;
       }
-      await query("UPDATE rooms SET is_call_active = false, call_participants = '[]'::jsonb WHERE id = $1", [id]);
+      await query("UPDATE rooms SET is_call_active = false, call_mode = NULL, call_participants = '[]'::jsonb WHERE id = $1", [id]);
       if (coordinator) {
         coordinator.isCallActive = false;
         coordinator.callParticipants.clear();
@@ -533,6 +535,10 @@ router.post('/:id/call', async (req: Request, res: Response) => {
         });
       }
     } else if (action === 'join') {
+      if (!room.is_call_active) {
+        res.status(400).json({ error: 'No active call to join' });
+        return;
+      }
       if (!participants.includes(decoded.userId)) {
         participants.push(decoded.userId);
         await query('UPDATE rooms SET call_participants = $1 WHERE id = $2', [JSON.stringify(participants), id]);
@@ -551,9 +557,13 @@ router.post('/:id/call', async (req: Request, res: Response) => {
       }
     } else if (action === 'leave') {
       participants = participants.filter((p) => p !== decoded.userId);
-      await query('UPDATE rooms SET call_participants = $1 WHERE id = $2', [JSON.stringify(participants), id]);
+      const stillActive = participants.length > 0;
+      await query('UPDATE rooms SET is_call_active = $1, call_participants = $2 WHERE id = $3', [stillActive, JSON.stringify(participants), id]);
       if (coordinator) {
         coordinator.callParticipants.delete(decoded.userId);
+        if (!stillActive) {
+          coordinator.isCallActive = false;
+        }
         coordinator.broadcast({
           id: generateUserId(),
           roomId: id,
@@ -566,9 +576,73 @@ router.post('/:id/call', async (req: Request, res: Response) => {
       }
     }
 
-    res.json({ success: true, isCallActive: action === 'start' ? true : action === 'end' ? false : room.is_call_active, callParticipants: participants });
+    res.json({
+      success: true,
+      isCallActive: action === 'start' ? true : action === 'end' ? false : room.is_call_active,
+      callMode: action === 'start' ? callMode : room.call_mode,
+      callParticipants: participants,
+    });
   } catch (err: any) {
     res.status(500).json({ error: 'Error managing call' });
+  }
+});
+
+// LiveKit Token Issuer Endpoint (Phase 3, 4, 5)
+router.post('/:id/call/token', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, mode: requestedMode } = req.body;
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session' });
+      return;
+    }
+
+    const rRes = await query('SELECT is_call_active, call_mode FROM rooms WHERE id = $1', [id]);
+    if (rRes.rows.length === 0) {
+      res.status(404).json({ error: 'Room not found' });
+      return;
+    }
+    const room = rRes.rows[0];
+    const mode = room.call_mode || (requestedMode === 'audio' ? 'audio' : 'video');
+
+    const livekitUrl = process.env.LIVEKIT_URL;
+    const apiKey = process.env.LIVEKIT_API_KEY;
+    const apiSecret = process.env.LIVEKIT_API_SECRET;
+
+    if (livekitUrl && apiKey && apiSecret) {
+      const at = new AccessToken(apiKey, apiSecret, {
+        identity: decoded.userId,
+        name: decoded.name,
+        ttl: '15m',
+      });
+      at.addGrant({
+        room: id,
+        roomJoin: true,
+        canPublish: true,
+        canSubscribe: true,
+        canPublishData: true,
+        canPublishSources: mode === 'audio' ? [TrackSource.MICROPHONE] : [TrackSource.CAMERA, TrackSource.MICROPHONE],
+      });
+
+      const livekitJwt = await at.toJwt();
+      res.json({
+        success: true,
+        provider: 'livekit',
+        url: livekitUrl,
+        token: livekitJwt,
+        mode,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      provider: 'fallback',
+      mode,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Error generating call token' });
   }
 });
 
@@ -641,6 +715,9 @@ router.get('/:id/poll', async (req: Request, res: Response) => {
       payload: s.payload,
     }));
 
+    const rModeRes = await query('SELECT call_mode FROM rooms WHERE id = $1', [id]);
+    const callMode = rModeRes.rows[0]?.call_mode || 'video';
+
     res.json({
       success: true,
       metadata: coordinator.metadata,
@@ -650,6 +727,7 @@ router.get('/:id/poll', async (req: Request, res: Response) => {
       recentChat,
       queue: coordinator.queue,
       isCallActive: coordinator.isCallActive,
+      callMode,
       callParticipants: Array.from(coordinator.callParticipants),
       callHostName: coordinator.metadata.title,
       signals,
