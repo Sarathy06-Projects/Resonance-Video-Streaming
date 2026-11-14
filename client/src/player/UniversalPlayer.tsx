@@ -442,13 +442,16 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
             )}
 
             {(activeProvider === 'generic_embed' ||
+              activeProvider === 'gdrive' ||
               activeProvider === 'streamable' ||
               activeProvider === 'loom' ||
               activeProvider === 'wistia') && (
               <GenericEmbedAdapter
                 ref={adapterRef}
                 embedUrl={
-                  activeProvider === 'streamable'
+                  activeProvider === 'gdrive'
+                    ? `https://drive.google.com/file/d/${activeVideoId}/preview`
+                    : activeProvider === 'streamable'
                     ? `https://streamable.com/e/${activeVideoId}`
                     : activeProvider === 'loom'
                     ? `https://www.loom.com/embed/${activeVideoId}`

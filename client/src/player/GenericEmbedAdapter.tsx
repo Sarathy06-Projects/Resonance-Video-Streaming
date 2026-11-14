@@ -94,34 +94,57 @@ export const GenericEmbedAdapter = forwardRef<PlayerAdapter, GenericEmbedAdapter
           ref={iframeRef}
           src={embedUrl}
           title="Generic Web Video Player"
-          sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-forms allow-popups"
           allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
           className="w-full h-full border-0 bg-black"
           onLoad={() => callbacks.onReady()}
           onError={() => setHasFrameError(true)}
         />
 
+        {/* Google Drive Direct Helper: lets users sign in or request access in separate tab without leaving room */}
+        {embedUrl.includes('drive.google.com') && !hasFrameError && (
+          <div className="absolute top-3 right-3 z-15 flex items-center gap-2">
+            <a
+              href={embedUrl.replace('/preview', '/view')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-yellow-300 hover:text-white bg-dark-900/85 hover:bg-dark-800 px-2.5 py-1 rounded-md border border-yellow-500/30 backdrop-blur-sm transition-all flex items-center gap-1 shadow-sm"
+              title="Open Google Drive file to check sharing permissions or sign in"
+            >
+              <ExternalLink className="w-3 h-3" />
+              <span>Open in Drive ↗</span>
+            </a>
+          </div>
+        )}
+
         {/* Framing Restriction Fallback Overlay */}
         {hasFrameError ? (
           <div className="absolute inset-0 z-30 bg-dark-900/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
             <AlertCircle className="w-12 h-12 text-amber-400 mb-3" />
             <h4 className="text-base font-semibold text-white mb-1">
-              Website Restricts Third-Party Embedding
+              {embedUrl.includes('drive.google.com')
+                ? 'Google Drive File Unavailable or Restricted'
+                : 'Website Restricts Third-Party Embedding'}
             </h4>
             <p className="text-xs text-gray-300 max-w-md mb-4 leading-relaxed">
-              This webpage enforces security policies (X-Frame-Options or CSP frame-ancestors) that block direct in-frame playback.
-              You remain inside Resonance with room chat and voice/video calling active.
+              {embedUrl.includes('drive.google.com')
+                ? 'This Google Drive video may be private, deleted, or require permissions. Ensure file sharing is set to "Anyone with the link", or open it directly in Google Drive.'
+                : 'This webpage enforces security policies (X-Frame-Options or CSP frame-ancestors) that block direct in-frame playback. You remain inside Resonance with room chat and voice/video calling active.'}
             </p>
             <div className="flex items-center gap-3">
               <a
-                href={embedUrl}
+                href={embedUrl.replace('/preview', '/view')}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow-lg shadow-brand-500/30 transition-all hover:scale-105"
                 title="Opens in a separate browser tab. Resonance stays active here."
               >
                 <ExternalLink className="w-4 h-4" />
-                <span>Open Original Video ↗</span>
+                <span>
+                  {embedUrl.includes('drive.google.com')
+                    ? 'Open in Google Drive ↗'
+                    : 'Open Original Video ↗'}
+                </span>
               </a>
             </div>
           </div>

@@ -148,6 +148,23 @@ describe('Resonance Universal Video Link Support & Playback Engine Test Suite', 
       assert.strictEqual(resArchive.provider, 'generic_embed');
       assert.strictEqual(resArchive.compatibility, 'fully_syncable');
       assert.strictEqual(resArchive.playbackMode, 'embed');
+
+      // Google Drive File URL (/file/d/ID/view)
+      const resGDriveView = await resolveMediaUrl('https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view?usp=sharing');
+      assert.strictEqual(resGDriveView.provider, 'gdrive');
+      assert.strictEqual(resGDriveView.videoId, '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+      assert.strictEqual(resGDriveView.embedUrl, 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/preview');
+      assert.strictEqual(resGDriveView.compatibility, 'limited_sync');
+      assert.strictEqual(resGDriveView.playbackMode, 'embed');
+      assert.strictEqual(resGDriveView.capabilities.canSeek, false);
+      assert.strictEqual(resGDriveView.capabilities.canPause, true);
+
+      // Google Drive Open ID URL (/open?id=ID)
+      const resGDriveOpen = await resolveMediaUrl('https://drive.google.com/open?id=1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+      assert.strictEqual(resGDriveOpen.provider, 'gdrive');
+      assert.strictEqual(resGDriveOpen.videoId, '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+      assert.strictEqual(resGDriveOpen.embedUrl, 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/preview');
+      assert.strictEqual(resGDriveOpen.playbackMode, 'embed');
     });
 
     test('Category D: Generic video webpage with unknown domain is accepted', async () => {
@@ -329,6 +346,29 @@ describe('Resonance Universal Video Link Support & Playback Engine Test Suite', 
       await query('DELETE FROM rooms WHERE id = $1', [data.roomId]);
     });
 
+    test('POST /api/rooms creates room with Google Drive video URL and sets preview embed', async () => {
+      const gdriveUrl = 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/view?usp=sharing';
+      const res = await fetch(`${baseUrl}/api/rooms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoUrl: gdriveUrl,
+          hostName: 'Drive Host',
+        }),
+      });
+      const data = await res.json();
+      assert.strictEqual(res.status, 201);
+      assert.strictEqual(data.metadata.videoProvider, 'gdrive');
+      assert.strictEqual(data.metadata.videoId, '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms');
+      assert.strictEqual(data.metadata.playbackMode, 'embed');
+      assert.strictEqual(data.metadata.compatibility, 'limited_sync');
+
+      // Clean up created room
+      await query('DELETE FROM room_members WHERE room_id = $1', [data.roomId]);
+      await query('DELETE FROM rooms WHERE id = $1', [data.roomId]);
+    });
+
+
     test('POST /api/rooms creates room with DRM external URL (Netflix)', async () => {
       const netflixUrl = 'https://www.netflix.com/title/80057281';
       const res = await fetch(`${baseUrl}/api/rooms`, {
@@ -348,6 +388,7 @@ describe('Resonance Universal Video Link Support & Playback Engine Test Suite', 
       await query('DELETE FROM room_members WHERE room_id = $1', [data.roomId]);
       await query('DELETE FROM rooms WHERE id = $1', [data.roomId]);
     });
+
 
     test('POST /api/rooms/:id/video switches video to DRM external mode and persists provider', async () => {
       const primeUrl = 'https://www.primevideo.com/detail/0S35G0J';

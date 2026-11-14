@@ -33,6 +33,7 @@ const STREAMABLE_REGEX = /streamable\.com\/([a-zA-Z0-9]+)/;
 const LOOM_REGEX = /loom\.com\/(?:share|embed)\/([a-zA-Z0-9]+)/;
 const WISTIA_REGEX = /(?:wistia\.(?:com|net)\/(?:medias|embed|iframe)\/|wi\.st\/)([a-zA-Z0-9]+)/;
 const ARCHIVE_ORG_REGEX = /archive\.org\/(?:details|embed)\/([a-zA-Z0-9_\-\.]+)/;
+const GOOGLE_DRIVE_REGEX = /(?:drive|docs)\.google\.com\/(?:file\/d\/([a-zA-Z0-9_-]+)|(?:open|uc)\?(?:[^\s&]*&)*id=([a-zA-Z0-9_-]+))/;
 
 // Known DRM / embedding-blocked platforms (X-Frame-Options: SAMEORIGIN / CSP frame-ancestors 'self')
 const FRAME_BLOCKED_DOMAINS = [
@@ -65,7 +66,6 @@ const FRAME_BLOCKED_DOMAINS = [
 
 const AUTH_REQUIRED_PATTERNS = [
   /patreon\.com\/posts\//,
-  /drive\.google\.com\/file\//,
   /facebook\.com\/watch\//,
 ];
 
@@ -239,6 +239,20 @@ export function detectProviderQuick(
     };
   }
 
+  // Google Drive Video Preview
+  if (lower.includes('drive.google.com') || lower.includes('docs.google.com')) {
+    const gdMatch = trimmed.match(GOOGLE_DRIVE_REGEX);
+    if (gdMatch) {
+      const fileId = gdMatch[1] || gdMatch[2];
+      return {
+        provider: 'gdrive',
+        videoId: fileId,
+        compatibility: 'limited_sync',
+        playbackMode: 'embed',
+      };
+    }
+  }
+
   // Generic Web Page (Valid HTTP/HTTPS)
   if (lower.startsWith('http://') || lower.startsWith('https://')) {
     return {
@@ -359,6 +373,12 @@ export const PROVIDER_META: Record<
     color: '#14b8a6',
     badgeBg: 'bg-teal-500/15 border-teal-500/30 text-teal-400',
     capabilitiesText: 'Embed Sync: Play, Pause, Seek',
+  },
+  gdrive: {
+    name: 'Google Drive',
+    color: '#eab308',
+    badgeBg: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-300',
+    capabilitiesText: 'Drive Preview Embed: Play/Pause Session Sync',
   },
   generic_embed: {
     name: 'Web Video Page',

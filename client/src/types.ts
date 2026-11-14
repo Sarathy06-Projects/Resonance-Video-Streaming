@@ -9,6 +9,7 @@ export type VideoProviderType =
   | 'streamable'
   | 'loom'
   | 'wistia'
+  | 'gdrive'
   | 'generic_embed'
   | 'external';
 

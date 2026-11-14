@@ -63,6 +63,7 @@ const STREAMABLE_REGEX = /streamable\.com\/([a-zA-Z0-9]+)/;
 const LOOM_REGEX = /loom\.com\/(?:share|embed)\/([a-zA-Z0-9]+)/;
 const WISTIA_REGEX = /(?:wistia\.(?:com|net)\/(?:medias|embed|iframe)\/|wi\.st\/)([a-zA-Z0-9]+)/;
 const ARCHIVE_ORG_REGEX = /archive\.org\/(?:details|embed)\/([a-zA-Z0-9_\-\.]+)/;
+const GOOGLE_DRIVE_REGEX = /(?:drive|docs)\.google\.com\/(?:file\/d\/([a-zA-Z0-9_-]+)|(?:open|uc)\?(?:[^\s&]*&)*id=([a-zA-Z0-9_-]+))/;
 
 // Known DRM / embedding-blocked platforms (X-Frame-Options: SAMEORIGIN / CSP frame-ancestors 'self')
 const FRAME_BLOCKED_DOMAINS = [
@@ -96,7 +97,6 @@ const FRAME_BLOCKED_DOMAINS = [
 // Authentication-dependent platforms
 const AUTH_REQUIRED_PATTERNS = [
   /patreon\.com\/posts\//,
-  /drive\.google\.com\/file\//,
   /facebook\.com\/watch\//,
 ];
 
@@ -464,6 +464,33 @@ export async function resolveMediaUrl(rawUrl: string): Promise<ResolvedMediaInfo
         compatibility: 'fully_syncable',
         playbackMode: 'embed',
         explanation: 'Internet Archive public media embed. Synchronized playback enabled.',
+      };
+    }
+  }
+
+  // 9. Google Drive Video
+  if (host.includes('drive.google.com') || host.includes('docs.google.com')) {
+    const match = trimmed.match(GOOGLE_DRIVE_REGEX);
+    if (match) {
+      const fileId = match[1] || match[2];
+      return {
+        videoId: fileId,
+        url: trimmed,
+        title: `Google Drive Video (${fileId.slice(0, 8)}...)`,
+        authorName: 'Google Drive',
+        thumbnailUrl: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=600&q=80',
+        provider: 'gdrive',
+        embedUrl: `https://drive.google.com/file/d/${fileId}/preview`,
+        capabilities: {
+          canSeek: false,
+          canPause: true,
+          canSyncRate: false,
+          isLive: false,
+        },
+        supported: true,
+        compatibility: 'limited_sync',
+        playbackMode: 'embed',
+        explanation: 'Google Drive video preview. Play/pause session status and room presence are coordinated. In-player seeking is controlled locally within the video.',
       };
     }
   }
