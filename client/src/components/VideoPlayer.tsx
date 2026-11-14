@@ -86,9 +86,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   });
 
   // Calculate drift between guest current time and host authoritative state (Section 11.2 & 11.3)
+  const currentTimeRef = useRef(currentTime);
+  useEffect(() => {
+    currentTimeRef.current = currentTime;
+  }, [currentTime]);
+
   const [driftSeconds, setDriftSeconds] = useState<number>(0);
 
-  // Periodic active sync & drift monitor for viewers
+  // Periodic active sync & drift monitor for viewers (runs smoothly every 2s without resetting on time updates)
   useEffect(() => {
     if (!authoritativePlayback || isHost || !isReady) return;
 
@@ -100,37 +105,38 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         expected += elapsed * (authoritativePlayback.playbackRate || 1.0);
       }
 
-      const drift = Math.abs(currentTime - expected);
+      const drift = Math.abs(currentTimeRef.current - expected);
       setDriftSeconds(drift);
 
-      // If host is playing but viewer is not playing, immediately trigger sync
+      // Trigger sync if host is playing but viewer paused, or if drift exceeds smooth window (> 2.5s)
       if (!isPlaying && authoritativePlayback.status === 'playing') {
         syncWithAuthoritative(
           expected,
           authoritativePlayback.status,
           authoritativePlayback.playbackRate
         );
-      } else if (drift > 1.0) {
-        // Auto drift correction if drift > 1.0s
+      } else if (drift > 2.5) {
         syncWithAuthoritative(
           expected,
           authoritativePlayback.status,
           authoritativePlayback.playbackRate
         );
       }
-    }, 800);
+    }, 2000);
 
     return () => clearInterval(interval);
   }, [
-    authoritativePlayback,
-    currentTime,
+    authoritativePlayback?.status,
+    authoritativePlayback?.position,
+    authoritativePlayback?.updatedAt,
+    authoritativePlayback?.playbackRate,
     isHost,
     isReady,
     isPlaying,
     syncWithAuthoritative,
   ]);
 
-  // Sync immediately when authoritative state changes, player becomes ready, or video changes
+  // Sync immediately when host command changes (Host clicked Pause/Play or changed video)
   useEffect(() => {
     if (!authoritativePlayback || isHost || !isReady) return;
 
@@ -148,8 +154,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     );
   }, [
     authoritativePlayback?.status,
-    authoritativePlayback?.position,
-    authoritativePlayback?.updatedAt,
     isReady,
     isHost,
     videoId,

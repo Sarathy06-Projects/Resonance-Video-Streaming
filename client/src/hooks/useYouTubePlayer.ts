@@ -28,6 +28,8 @@ export function useYouTubePlayer({
 }: UseYouTubePlayerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
+  const playerStateRef = useRef<number>(-1);
+  const lastSeekTimeRef = useRef<number>(0);
   const pendingPlayRef = useRef<boolean>(false);
   const pendingSyncRef = useRef<{ expectedPosition: number; targetStatus: string; rate: number } | null>(null);
 
@@ -129,6 +131,7 @@ export function useYouTubePlayer({
             },
             onStateChange: (event: any) => {
               const state = event.data;
+              playerStateRef.current = state;
               const time = event.target.getCurrentTime?.() || 0;
               setCurrentTime(time);
 
@@ -303,76 +306,103 @@ export function useYouTubePlayer({
     } catch (e) {}
   }, [volume]);
 
-  // Drift correction & incoming remote sync logic (Section 11.3)
+  // Drift correction & incoming remote sync logic with Buffer Protection & Smooth Rate Adjustment
   const syncWithAuthoritative = useCallback(
     (expectedPosition: number, targetStatus: 'playing' | 'paused' | 'ended', rate = 1.0) => {
       if (!playerRef.current || !isReady) {
         pendingSyncRef.current = { expectedPosition, targetStatus, rate };
         return;
       }
-      markRemoteAction(); // Prevent remote update from echoing back to server
 
-      try {
-        const current = playerRef.current.getCurrentTime?.() || 0;
-        const drift = Math.abs(current - expectedPosition);
-        if (drift > 0.5) {
-          playerRef.current.seekTo?.(expectedPosition, true);
-          setCurrentTime(expectedPosition);
+      const now = Date.now();
+      const currentState = playerStateRef.current;
+
+      // 1. Target is PAUSED
+      if (targetStatus === 'paused') {
+        if (currentState === 1 || isPlaying) {
+          markRemoteAction();
+          try {
+            playerRef.current.pauseVideo?.();
+            setIsPlaying(false);
+          } catch {}
         }
-      } catch (e) {}
+        try {
+          const current = playerRef.current.getCurrentTime?.() || 0;
+          if (Math.abs(current - expectedPosition) > 1.5) {
+            markRemoteAction();
+            playerRef.current.seekTo?.(expectedPosition, true);
+            setCurrentTime(expectedPosition);
+          }
+        } catch {}
+        return;
+      }
 
-      setRate(rate);
-
-      if (targetStatus === 'playing') {
+      // 2. Target is PLAYING
+      // If player is not currently playing or buffering, resume playback
+      if (currentState !== 1 && currentState !== 3) {
+        markRemoteAction();
         try {
           const playPromise = playerRef.current.playVideo?.();
           setIsPlaying(true);
           if (playPromise && typeof playPromise.catch === 'function') {
             playPromise.catch(() => {
-              // Browser blocked unmuted autoplay: fall back to muted autoplay immediately so video moves!
+              // Muted autoplay fallback
               try {
                 playerRef.current.mute?.();
                 playerRef.current.playVideo?.();
                 setIsMuted(true);
                 setIsAutoplayBlocked(true);
-              } catch (err) {
-                setIsAutoplayBlocked(true);
-              }
+              } catch {}
             });
           }
-        } catch (e) {
-          try {
-            playerRef.current.mute?.();
-            playerRef.current.playVideo?.();
-            setIsMuted(true);
-            setIsAutoplayBlocked(true);
-          } catch (err) {
-            setIsAutoplayBlocked(true);
+        } catch {}
+      }
+
+      // 3. BUFFERING GUARD: If player is actively buffering (State 3), NEVER seek!
+      // Seeking while buffering interrupts download chunks and causes infinite buffering wheel!
+      if (currentState === 3) {
+        return;
+      }
+
+      // 4. SEEK COOLDOWN GUARD: Ensure at least 3.5s between hard seeks
+      if (now - lastSeekTimeRef.current < 3500) {
+        return;
+      }
+
+      try {
+        const current = playerRef.current.getCurrentTime?.() || 0;
+        const drift = Math.abs(current - expectedPosition);
+
+        // A. Small drift (< 2.5 seconds): DO NOT SEEK.
+        // Minor sub-2s differences between client CDN edges are completely normal and imperceptible.
+        if (drift < 2.5) {
+          if (playbackRate !== rate) {
+            setRate(rate);
           }
+          return;
         }
 
-        // Secondary fallback: if browser silently ignored playVideo, force muted autoplay
-        setTimeout(() => {
-          if (playerRef.current) {
-            try {
-              const state = playerRef.current.getPlayerState?.();
-              if (state !== 1 && state !== 3) {
-                playerRef.current.mute?.();
-                playerRef.current.playVideo?.();
-                setIsMuted(true);
-                setIsAutoplayBlocked(true);
-              }
-            } catch (e) {}
+        // B. Moderate drift (2.5s to 4.5s): Smooth dynamic playback rate adjustment (ZERO BUFFERING!)
+        if (drift >= 2.5 && drift <= 4.5) {
+          if (current < expectedPosition) {
+            // Viewer is slightly behind host: speed up slightly to catch up smoothly
+            setRate(1.1);
+          } else {
+            // Viewer is slightly ahead of host: slow down slightly
+            setRate(0.95);
           }
-        }, 500);
-      } else if (targetStatus === 'paused') {
-        try {
-          playerRef.current.pauseVideo?.();
-          setIsPlaying(false);
-        } catch (e) {}
-      }
+          return;
+        }
+
+        // C. Large drift (> 4.5 seconds): Host scrubbed chapters or skipped far ahead
+        lastSeekTimeRef.current = now;
+        markRemoteAction();
+        playerRef.current.seekTo?.(expectedPosition, true);
+        setCurrentTime(expectedPosition);
+        setRate(rate);
+      } catch (e) {}
     },
-    [isReady, setRate, markRemoteAction]
+    [isReady, isPlaying, playbackRate, setRate, markRemoteAction]
   );
 
   return {

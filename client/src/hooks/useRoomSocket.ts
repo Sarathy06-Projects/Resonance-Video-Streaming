@@ -53,6 +53,45 @@ export function useRoomSocket({
     'connecting' | 'connected' | 'reconnecting' | 'disconnected' | 'kicked'
   >('connecting');
 
+  // Callback ref stabilization to prevent infinite re-render reconnection loops
+  const callbacksRef = useRef({
+    onPlaybackPlay,
+    onPlaybackPause,
+    onPlaybackSeek,
+    onPlaybackRate,
+    onVideoChange,
+    onNewChat,
+    onNewReaction,
+    onKicked,
+    onRoomClosed,
+    onCallStarted,
+    onCallEnded,
+    onCallParticipantJoined,
+    onCallParticipantLeft,
+    onCallSignal,
+    onCallMediaState,
+  });
+
+  useEffect(() => {
+    callbacksRef.current = {
+      onPlaybackPlay,
+      onPlaybackPause,
+      onPlaybackSeek,
+      onPlaybackRate,
+      onVideoChange,
+      onNewChat,
+      onNewReaction,
+      onKicked,
+      onRoomClosed,
+      onCallStarted,
+      onCallEnded,
+      onCallParticipantJoined,
+      onCallParticipantLeft,
+      onCallSignal,
+      onCallMediaState,
+    };
+  });
+
   const [metadata, setMetadata] = useState<RoomMetadata | null>(null);
   const [playbackState, setPlaybackState] = useState<PlaybackState | null>(null);
   const playbackStateRef = useRef<PlaybackState | null>(null);
@@ -70,6 +109,8 @@ export function useRoomSocket({
   const reconnectAttemptsRef = useRef(0);
   const lastChatTimestampRef = useRef<number>(0);
   const pollTimerRef = useRef<any>(null);
+  const isPollingRef = useRef<boolean>(false);
+  const consecutivePollFailuresRef = useRef<number>(0);
 
   // Synchronize playback state ref
   useEffect(() => {
@@ -82,16 +123,24 @@ export function useRoomSocket({
 
   // HTTP Polling fallback function for Vercel Serverless
   const pollRoom = useCallback(async () => {
-    if (!roomId || !token) return;
+    if (!roomId || !token || isPollingRef.current) return;
+    isPollingRef.current = true;
     try {
       const res = await fetch(
         `/api/rooms/${roomId}/poll?token=${encodeURIComponent(token)}&since=${lastChatTimestampRef.current}`
       );
-      if (!res.ok) return;
+      if (!res.ok) {
+        consecutivePollFailuresRef.current++;
+        if (consecutivePollFailuresRef.current >= 3) {
+          setConnectionStatus('reconnecting');
+        }
+        return;
+      }
       const data = await res.json();
       if (!data.success) return;
 
       // Mark status as connected since HTTP sync is actively running
+      consecutivePollFailuresRef.current = 0;
       setConnectionStatus((prev) => (prev === 'kicked' ? 'kicked' : 'connected'));
 
       if (data.metadata) {
@@ -107,9 +156,9 @@ export function useRoomSocket({
         const mode = data.callMode || 'video';
         setCallMode(mode);
         if (data.isCallActive && !isCallActiveRef.current) {
-          onCallStarted?.(data.callHostName || 'Creator', data.callParticipants || [], mode);
+          callbacksRef.current.onCallStarted?.(data.callHostName || 'Creator', data.callParticipants || [], mode);
         } else if (!data.isCallActive && isCallActiveRef.current) {
-          onCallEnded?.();
+          callbacksRef.current.onCallEnded?.();
         }
         setIsCallActive(data.isCallActive);
       }
@@ -119,7 +168,7 @@ export function useRoomSocket({
       // WebRTC Signals
       if (Array.isArray(data.signals) && data.signals.length > 0) {
         for (const sig of data.signals) {
-          onCallSignal?.(sig.senderId, sig.payload);
+          callbacksRef.current.onCallSignal?.(sig.senderId, sig.payload);
         }
       }
 
@@ -137,7 +186,7 @@ export function useRoomSocket({
           // Update latest timestamp cursor
           newFromOther.forEach((m: ChatMessage) => {
             lastChatTimestampRef.current = Math.max(lastChatTimestampRef.current, m.timestamp);
-            onNewChat?.(m);
+            callbacksRef.current.onNewChat?.(m);
           });
 
           // Retain failed messages while merging new ones
@@ -160,32 +209,27 @@ export function useRoomSocket({
               ? { ...prev, videoId: sPb.videoId, title: data.metadata?.title || prev.title }
               : null
           );
-          onVideoChange?.(sPb.videoId, data.metadata?.title);
+          callbacksRef.current.onVideoChange?.(sPb.videoId, data.metadata?.title);
         }
 
         // Status change check
         if (sPb.status === 'playing' && cPb?.status !== 'playing') {
-          onPlaybackPlay?.(sPb.position, sPb.updatedAt, sPb.playbackRate || 1.0);
+          callbacksRef.current.onPlaybackPlay?.(sPb.position, sPb.updatedAt, sPb.playbackRate || 1.0);
         } else if (sPb.status === 'paused' && cPb?.status === 'playing') {
-          onPlaybackPause?.(sPb.position, sPb.updatedAt);
+          callbacksRef.current.onPlaybackPause?.(sPb.position, sPb.updatedAt);
         }
 
         setPlaybackState(sPb);
       }
     } catch {
-      // ignore network blips in poll
+      consecutivePollFailuresRef.current++;
+      if (consecutivePollFailuresRef.current >= 3) {
+        setConnectionStatus('reconnecting');
+      }
+    } finally {
+      isPollingRef.current = false;
     }
-  }, [
-    roomId,
-    token,
-    onCallStarted,
-    onCallEnded,
-    onCallSignal,
-    onNewChat,
-    onVideoChange,
-    onPlaybackPlay,
-    onPlaybackPause,
-  ]);
+  }, [roomId, token]);
 
   const connect = useCallback(() => {
     if (!roomId || !token) return;
@@ -193,14 +237,25 @@ export function useRoomSocket({
     // Start polling immediately to ensure instant room state
     pollRoom();
     if (!pollTimerRef.current) {
-      pollTimerRef.current = setInterval(pollRoom, 1200);
+      pollTimerRef.current = setInterval(pollRoom, 2000);
+    }
+
+    // In production Vercel serverless environment (app.resonance.org.in or vercel.app),
+    // native WebSockets are not supported by the platform.
+    // HTTP polling provides 100% stable sync, so we keep status as 'connected'.
+    const isServerless =
+      typeof window !== 'undefined' &&
+      (window.location.hostname.includes('resonance.org.in') ||
+        window.location.hostname.includes('vercel.app'));
+
+    if (isServerless) {
+      setConnectionStatus('connected');
+      return;
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.port === '5173' ? 'localhost:4000' : window.location.host;
     const wsUrl = `${protocol}//${host}/api/rooms/${roomId}/connect?token=${encodeURIComponent(token)}`;
-
-    setConnectionStatus((prev) => (prev === 'connected' ? 'reconnecting' : 'connecting'));
 
     let ws: WebSocket;
     try {
@@ -256,7 +311,7 @@ export function useRoomSocket({
               sequence: prev?.sequence || 0,
               hostId: prev?.hostId || '',
             }));
-            onPlaybackPlay?.(position, updatedAt, playbackRate || 1.0);
+            callbacksRef.current.onPlaybackPlay?.(position, updatedAt, playbackRate || 1.0);
             break;
           }
 
@@ -271,7 +326,7 @@ export function useRoomSocket({
               sequence: prev?.sequence || 0,
               hostId: prev?.hostId || '',
             }));
-            onPlaybackPause?.(position, updatedAt);
+            callbacksRef.current.onPlaybackPause?.(position, updatedAt);
             break;
           }
 
@@ -286,7 +341,7 @@ export function useRoomSocket({
               sequence: prev?.sequence || 0,
               hostId: prev?.hostId || '',
             }));
-            onPlaybackSeek?.(position, status);
+            callbacksRef.current.onPlaybackSeek?.(position, status);
             break;
           }
 
@@ -301,7 +356,7 @@ export function useRoomSocket({
               sequence: prev?.sequence || 0,
               hostId: prev?.hostId || '',
             }));
-            onPlaybackRate?.(playbackRate, position);
+            callbacksRef.current.onPlaybackRate?.(playbackRate, position);
             break;
           }
 
@@ -313,7 +368,7 @@ export function useRoomSocket({
                 : null
             );
             setMetadata((prev) => (prev ? { ...prev, videoId, title: title || prev.title } : null));
-            onVideoChange?.(videoId, title);
+            callbacksRef.current.onVideoChange?.(videoId, title);
             break;
           }
 
@@ -325,14 +380,14 @@ export function useRoomSocket({
               return [...prev, { ...msg, status: 'sent' }];
             });
             lastChatTimestampRef.current = Math.max(lastChatTimestampRef.current, msg.timestamp);
-            onNewChat?.(msg);
+            callbacksRef.current.onNewChat?.(msg);
             break;
           }
 
           case 'reaction:broadcast': {
             const reaction: Reaction = roomEvent.payload.reaction;
             setReactions((prev) => [...prev.slice(-19), reaction]);
-            onNewReaction?.(reaction);
+            callbacksRef.current.onNewReaction?.(reaction);
             break;
           }
 
@@ -354,7 +409,7 @@ export function useRoomSocket({
           case 'member:kicked': {
             const { targetMemberId, reason } = roomEvent.payload;
             setParticipants((prev) => prev.filter((p) => p.id !== targetMemberId));
-            onKicked?.(reason || 'You have been kicked by the host.');
+            callbacksRef.current.onKicked?.(reason || 'You have been kicked by the host.');
             break;
           }
 
@@ -378,7 +433,7 @@ export function useRoomSocket({
 
           case 'room:closed': {
             setConnectionStatus('disconnected');
-            onRoomClosed?.(roomEvent.payload.reason || 'Room closed');
+            callbacksRef.current.onRoomClosed?.(roomEvent.payload.reason || 'Room closed');
             break;
           }
 
@@ -394,7 +449,7 @@ export function useRoomSocket({
             setCallMode(mode);
             setCallHostName(hostName || 'Creator');
             setCallParticipants(callParticipants || []);
-            onCallStarted?.(hostName, callParticipants || [], mode);
+            callbacksRef.current.onCallStarted?.(hostName, callParticipants || [], mode);
             break;
           }
 
@@ -403,32 +458,32 @@ export function useRoomSocket({
             setCallParticipants([]);
             setCallHostName('');
             setCallMode(null);
-            onCallEnded?.();
+            callbacksRef.current.onCallEnded?.();
             break;
           }
 
           case 'call:participant_joined': {
             const { participantId, callParticipants: updatedList } = roomEvent.payload;
             setCallParticipants(updatedList || []);
-            onCallParticipantJoined?.(participantId, updatedList || []);
+            callbacksRef.current.onCallParticipantJoined?.(participantId, updatedList || []);
             break;
           }
 
           case 'call:participant_left': {
             const { participantId, callParticipants: updatedList } = roomEvent.payload;
             setCallParticipants(updatedList || []);
-            onCallParticipantLeft?.(participantId, updatedList || []);
+            callbacksRef.current.onCallParticipantLeft?.(participantId, updatedList || []);
             break;
           }
 
           case 'call:signal': {
-            onCallSignal?.(roomEvent.senderId, roomEvent.payload);
+            callbacksRef.current.onCallSignal?.(roomEvent.senderId, roomEvent.payload);
             break;
           }
 
           case 'call:media-state': {
             const { participantId, isMuted, isCameraOff } = roomEvent.payload;
-            onCallMediaState?.(participantId, isMuted, isCameraOff);
+            callbacksRef.current.onCallMediaState?.(participantId, isMuted, isCameraOff);
             break;
           }
         }
@@ -440,42 +495,17 @@ export function useRoomSocket({
     ws.onclose = (event) => {
       if (event.code === 4001) {
         setConnectionStatus('kicked');
+        callbacksRef.current.onKicked?.('You have been kicked from this room.');
         return;
       }
+      // On connection drop, stay connected via HTTP polling fallback without flashing reconnecting
       setConnectionStatus('connected');
-
-      if (reconnectAttemptsRef.current < 3) {
-        reconnectAttemptsRef.current++;
-        const timeout = Math.min(1000 * 2 ** reconnectAttemptsRef.current, 5000);
-        setTimeout(() => {
-          connect();
-        }, timeout);
-      }
     };
 
     ws.onerror = () => {
       setConnectionStatus('connected');
     };
-  }, [
-    roomId,
-    token,
-    pollRoom,
-    onPlaybackPlay,
-    onPlaybackPause,
-    onPlaybackSeek,
-    onPlaybackRate,
-    onVideoChange,
-    onNewChat,
-    onNewReaction,
-    onKicked,
-    onRoomClosed,
-    onCallStarted,
-    onCallEnded,
-    onCallParticipantJoined,
-    onCallParticipantLeft,
-    onCallSignal,
-    onCallMediaState,
-  ]);
+  }, [roomId, token, pollRoom]);
 
   useEffect(() => {
     connect();
