@@ -187,6 +187,23 @@ describe('Resonance Universal Video Link Support & Playback Engine Test Suite', 
       assert.strictEqual(resHulu.provider, 'external');
       assert.strictEqual(resHulu.compatibility, 'embedding_blocked');
       assert.strictEqual(resHulu.playbackMode, 'external');
+
+      // XHamster (Frame Restricted via X-Frame-Options: SAMEORIGIN & CSP frame-ancestors 'self')
+      const resXhamster = await resolveMediaUrl('https://xhamster.com/videos/awesome-sample-clip-xh876543');
+      assert.strictEqual(resXhamster.provider, 'external');
+      assert.strictEqual(resXhamster.compatibility, 'embedding_blocked');
+      assert.strictEqual(resXhamster.playbackMode, 'external');
+      assert.strictEqual(resXhamster.supported, true);
+      assert.strictEqual(resXhamster.capabilities.canSeek, false);
+      assert.strictEqual(resXhamster.capabilities.canPause, true);
+      assert.strictEqual(resXhamster.title, 'awesome sample clip xh876543');
+      assert.ok(resXhamster.explanation.includes('X-Frame-Options') || resXhamster.explanation.includes('SAMEORIGIN'));
+
+      // Regional mirror / other tube sites
+      const resXhamsterDesi = await resolveMediaUrl('https://xhamster.desi/videos/trending-clip-xh123456');
+      assert.strictEqual(resXhamsterDesi.provider, 'external');
+      assert.strictEqual(resXhamsterDesi.compatibility, 'embedding_blocked');
+      assert.strictEqual(resXhamsterDesi.playbackMode, 'external');
     });
 
     test('Category F: Authentication-dependent content switches to External Playback', async () => {

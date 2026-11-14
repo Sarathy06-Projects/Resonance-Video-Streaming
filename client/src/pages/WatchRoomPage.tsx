@@ -292,6 +292,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
               provider={currentProvider}
               videoUrl={metadata?.videoUrl || currentVideoId}
               compatibility={metadata?.compatibility}
+              playbackMode={metadata?.playbackMode}
               isHost={isHost}
               hostName={hostDisplayName}
               authoritativePlayback={playbackState}

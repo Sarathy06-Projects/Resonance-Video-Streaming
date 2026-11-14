@@ -94,31 +94,47 @@ export const GenericEmbedAdapter = forwardRef<PlayerAdapter, GenericEmbedAdapter
           ref={iframeRef}
           src={embedUrl}
           title="Generic Web Video Player"
-          sandbox="allow-scripts allow-same-origin allow-presentation allow-forms allow-popups"
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
           allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
           className="w-full h-full border-0 bg-black"
           onLoad={() => callbacks.onReady()}
           onError={() => setHasFrameError(true)}
         />
 
-        {hasFrameError && (
-          <div className="absolute inset-0 z-30 bg-dark-900/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+        {/* Framing Restriction Fallback Overlay */}
+        {hasFrameError ? (
+          <div className="absolute inset-0 z-30 bg-dark-900/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
             <AlertCircle className="w-12 h-12 text-amber-400 mb-3" />
             <h4 className="text-base font-semibold text-white mb-1">
-              Website Restricts Direct Framing
+              Website Restricts Third-Party Embedding
             </h4>
-            <p className="text-xs text-gray-300 max-w-md mb-4">
-              This webpage enforces security policies that prevent direct iframe embedding. You can still watch it together in an external window with synchronized session status.
+            <p className="text-xs text-gray-300 max-w-md mb-4 leading-relaxed">
+              This webpage enforces security policies (X-Frame-Options or CSP frame-ancestors) that block direct in-frame playback.
+              You remain inside Resonance with room chat and voice/video calling active.
             </p>
-            <a
-              href={embedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow-lg shadow-brand-500/30 transition-all hover:scale-105"
+            <div className="flex items-center gap-3">
+              <a
+                href={embedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow-lg shadow-brand-500/30 transition-all hover:scale-105"
+                title="Opens in a separate browser tab. Resonance stays active here."
+              >
+                <ExternalLink className="w-4 h-4" />
+                <span>Open Original Video ↗</span>
+              </a>
+            </div>
+          </div>
+        ) : (
+          /* Subtle helper pill in case an unknown website fails to load silently without DOM error */
+          <div className="absolute bottom-14 right-3 z-15">
+            <button
+              onClick={() => setHasFrameError(true)}
+              className="text-[10px] text-gray-400 hover:text-white bg-black/60 hover:bg-black/80 px-2.5 py-1 rounded-md border border-white/10 backdrop-blur-sm transition-all"
+              title="Click if the website blocks iframe display"
             >
-              <ExternalLink className="w-4 h-4" />
-              <span>Open in External Watch Window</span>
-            </a>
+              Trouble viewing? Click here
+            </button>
           </div>
         )}
       </div>

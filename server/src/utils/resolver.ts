@@ -64,8 +64,8 @@ const LOOM_REGEX = /loom\.com\/(?:share|embed)\/([a-zA-Z0-9]+)/;
 const WISTIA_REGEX = /(?:wistia\.(?:com|net)\/(?:medias|embed|iframe)\/|wi\.st\/)([a-zA-Z0-9]+)/;
 const ARCHIVE_ORG_REGEX = /archive\.org\/(?:details|embed)\/([a-zA-Z0-9_\-\.]+)/;
 
-// Known DRM / embedding-blocked platforms
-const BLOCKED_DRM_DOMAINS = [
+// Known DRM / embedding-blocked platforms (X-Frame-Options: SAMEORIGIN / CSP frame-ancestors 'self')
+const FRAME_BLOCKED_DOMAINS = [
   'netflix.com',
   'primevideo.com',
   'amazon.com/gp/video',
@@ -79,6 +79,21 @@ const BLOCKED_DRM_DOMAINS = [
   'peacocktv.com',
   'paramountplus.com',
   'crunchyroll.com',
+  // Video tube sites enforcing X-Frame-Options: SAMEORIGIN & CSP frame-ancestors 'self'
+  'xhamster.com',
+  'xhamster.desi',
+  'xhamster2.com',
+  'xhamster3.com',
+  'xhamster.one',
+  'pornhub.com',
+  'xvideos.com',
+  'xnxx.com',
+  'redtube.com',
+  'youporn.com',
+  'chaturbate.com',
+  'onlyfans.com',
+  'tiktok.com',
+  'instagram.com',
 ];
 
 // Authentication-dependent platforms
@@ -133,13 +148,19 @@ export async function resolveMediaUrl(rawUrl: string): Promise<ResolvedMediaInfo
   // =========================================================================
   // CATEGORY E: RESTRICTED SOURCES (DRM & BLOCKED EMBEDDING)
   // =========================================================================
-  const isDrmBlocked = BLOCKED_DRM_DOMAINS.some((domain) => host.includes(domain) || (parsed.hostname + parsed.pathname).toLowerCase().includes(domain));
-  if (isDrmBlocked) {
-    const serviceName = host.replace(/^www\./, '').split('.')[0].toUpperCase();
+  const isFrameBlocked = FRAME_BLOCKED_DOMAINS.some(
+    (domain) => host.includes(domain) || (parsed.hostname + parsed.pathname).toLowerCase().includes(domain)
+  );
+  if (isFrameBlocked) {
+    const matchedDomain = FRAME_BLOCKED_DOMAINS.find((d) => host.includes(d)) || host;
+    const serviceName = matchedDomain.replace(/^www\./, '').split('.')[0].toUpperCase();
+    const pathSegment = parsed.pathname.split('/').filter(Boolean).pop() || '';
+    const cleanTitle = pathSegment ? decodeURIComponent(pathSegment).replace(/[-_]/g, ' ') : `${serviceName} Protected Video`;
+
     return {
       videoId: trimmed,
       url: trimmed,
-      title: `${serviceName} Protected Stream`,
+      title: cleanTitle,
       authorName: host,
       thumbnailUrl: 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?auto=format&fit=crop&w=600&q=80',
       provider: 'external',
@@ -152,7 +173,7 @@ export async function resolveMediaUrl(rawUrl: string): Promise<ResolvedMediaInfo
       supported: true,
       compatibility: 'embedding_blocked',
       playbackMode: 'external',
-      explanation: `${serviceName} protects video playback with Widevine/FairPlay DRM and strictly blocks third-party iframe embedding (X-Frame-Options/CSP). Resonance provides External Playback Mode so you can watch together in separate tabs while sharing room presence and chat.`,
+      explanation: `${serviceName} enforces security policies (Widevine/FairPlay DRM, X-Frame-Options: SAMEORIGIN, or CSP frame-ancestors) that block third-party in-frame embedding. Resonance provides External Playback Mode with synchronized session controls and room chat.`,
     };
   }
 

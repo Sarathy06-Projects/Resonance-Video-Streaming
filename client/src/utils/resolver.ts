@@ -34,7 +34,8 @@ const LOOM_REGEX = /loom\.com\/(?:share|embed)\/([a-zA-Z0-9]+)/;
 const WISTIA_REGEX = /(?:wistia\.(?:com|net)\/(?:medias|embed|iframe)\/|wi\.st\/)([a-zA-Z0-9]+)/;
 const ARCHIVE_ORG_REGEX = /archive\.org\/(?:details|embed)\/([a-zA-Z0-9_\-\.]+)/;
 
-const BLOCKED_DRM_DOMAINS = [
+// Known DRM / embedding-blocked platforms (X-Frame-Options: SAMEORIGIN / CSP frame-ancestors 'self')
+const FRAME_BLOCKED_DOMAINS = [
   'netflix.com',
   'primevideo.com',
   'amazon.com/gp/video',
@@ -48,6 +49,21 @@ const BLOCKED_DRM_DOMAINS = [
   'peacocktv.com',
   'paramountplus.com',
   'crunchyroll.com',
+  // Video tube platforms enforcing X-Frame-Options: SAMEORIGIN & CSP frame-ancestors 'self'
+  'xhamster.com',
+  'xhamster.desi',
+  'xhamster2.com',
+  'xhamster3.com',
+  'xhamster.one',
+  'pornhub.com',
+  'xvideos.com',
+  'xnxx.com',
+  'redtube.com',
+  'youporn.com',
+  'chaturbate.com',
+  'onlyfans.com',
+  'tiktok.com',
+  'instagram.com',
 ];
 
 const AUTH_REQUIRED_PATTERNS = [
@@ -80,7 +96,7 @@ export function detectProviderQuick(
   const lower = trimmed.toLowerCase();
 
   // Restricted DRM / Embedding Blocked
-  if (BLOCKED_DRM_DOMAINS.some((d) => lower.includes(d))) {
+  if (FRAME_BLOCKED_DOMAINS.some((d) => lower.includes(d))) {
     return {
       provider: 'external',
       videoId: trimmed,

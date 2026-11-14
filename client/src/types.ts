@@ -92,6 +92,7 @@ export type RoomMetadata = {
   videoId: string;
   videoUrl?: string;
   compatibility?: CompatibilityStatus;
+  playbackMode?: 'player' | 'embed' | 'external';
   isPrivate: boolean;
   passcode?: string;
   isLocked: boolean;

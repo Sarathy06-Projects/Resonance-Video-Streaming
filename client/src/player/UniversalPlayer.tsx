@@ -111,12 +111,15 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
 
   // Capabilities
   const capabilities = useMemo<PlaybackCapabilities>(() => {
+    if (activePlaybackMode === 'external') {
+      return { canSeek: false, canPause: true, canSyncRate: false, isLive: false };
+    }
     if (adapterRef.current) return adapterRef.current.getCapabilities();
     if (activeProvider === 'twitch' && !/^\d+$/.test(activeVideoId)) {
       return { canSeek: false, canPause: true, canSyncRate: false, isLive: true };
     }
     return { canSeek: true, canPause: true, canSyncRate: activeProvider === 'youtube' || activeProvider === 'direct' || activeProvider === 'vimeo', isLive: false };
-  }, [activeProvider, activeVideoId, isReady]);
+  }, [activeProvider, activeVideoId, activePlaybackMode, isReady]);
 
   // Adapter Callbacks
   const callbacks = useMemo(
@@ -283,7 +286,21 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
   };
 
   const handleTogglePlay = () => {
-    if (!isHost || !adapterRef.current) return;
+    if (!isHost) return;
+
+    // For external playback mode, toggle authoritative room playback state directly
+    if (activePlaybackMode === 'external') {
+      if (isPlaying) {
+        setIsPlaying(false);
+        onHostPause(currentTime);
+      } else {
+        setIsPlaying(true);
+        onHostPlay(currentTime);
+      }
+      return;
+    }
+
+    if (!adapterRef.current) return;
     if (isPlaying) {
       adapterRef.current.pause();
     } else {
@@ -455,8 +472,8 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
         )}
       </div>
 
-      {/* Big Interactive Center Play Button for Host when paused */}
-      {isHost && !isPlaying && (
+      {/* Big Interactive Center Play Button for Host when paused (only for in-frame players) */}
+      {isHost && !isPlaying && activePlaybackMode !== 'external' && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -471,8 +488,8 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
         </button>
       )}
 
-      {/* Prominent Overlay for Viewer when Host is Playing but Viewer is paused */}
-      {!isHost && authoritativePlayback?.status === 'playing' && !isPlaying && (
+      {/* Prominent Overlay for Viewer when Host is Playing but Viewer is paused (only for in-frame players) */}
+      {!isHost && authoritativePlayback?.status === 'playing' && !isPlaying && activePlaybackMode !== 'external' && (
         <button
           onClick={(e) => {
             e.stopPropagation();
