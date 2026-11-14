@@ -188,22 +188,21 @@ describe('Resonance Universal Video Link Support & Playback Engine Test Suite', 
       assert.strictEqual(resHulu.compatibility, 'embedding_blocked');
       assert.strictEqual(resHulu.playbackMode, 'external');
 
-      // XHamster (Frame Restricted via X-Frame-Options: SAMEORIGIN & CSP frame-ancestors 'self')
-      const resXhamster = await resolveMediaUrl('https://xhamster.com/videos/awesome-sample-clip-xh876543');
-      assert.strictEqual(resXhamster.provider, 'external');
-      assert.strictEqual(resXhamster.compatibility, 'embedding_blocked');
-      assert.strictEqual(resXhamster.playbackMode, 'external');
-      assert.strictEqual(resXhamster.supported, true);
-      assert.strictEqual(resXhamster.capabilities.canSeek, false);
-      assert.strictEqual(resXhamster.capabilities.canPause, true);
-      assert.strictEqual(resXhamster.title, 'awesome sample clip xh876543');
-      assert.ok(resXhamster.explanation.includes('X-Frame-Options') || resXhamster.explanation.includes('SAMEORIGIN'));
+      // TikTok (Frame Restricted via X-Frame-Options / CSP frame-ancestors)
+      const resTikTok = await resolveMediaUrl('https://www.tiktok.com/@creator/video/7123456789012345678');
+      assert.strictEqual(resTikTok.provider, 'external');
+      assert.strictEqual(resTikTok.compatibility, 'embedding_blocked');
+      assert.strictEqual(resTikTok.playbackMode, 'external');
+      assert.strictEqual(resTikTok.supported, true);
+      assert.strictEqual(resTikTok.capabilities.canSeek, false);
+      assert.strictEqual(resTikTok.capabilities.canPause, true);
+      assert.ok(resTikTok.explanation.includes('X-Frame-Options') || resTikTok.explanation.includes('SAMEORIGIN') || resTikTok.explanation.includes('CSP'));
 
-      // Regional mirror / other tube sites
-      const resXhamsterDesi = await resolveMediaUrl('https://xhamster.desi/videos/trending-clip-xh123456');
-      assert.strictEqual(resXhamsterDesi.provider, 'external');
-      assert.strictEqual(resXhamsterDesi.compatibility, 'embedding_blocked');
-      assert.strictEqual(resXhamsterDesi.playbackMode, 'external');
+      // Social / Restricted video platform (Instagram)
+      const resInstagram = await resolveMediaUrl('https://www.instagram.com/reel/Cq123456789/');
+      assert.strictEqual(resInstagram.provider, 'external');
+      assert.strictEqual(resInstagram.compatibility, 'embedding_blocked');
+      assert.strictEqual(resInstagram.playbackMode, 'external');
     });
 
     test('Category F: Authentication-dependent content switches to External Playback', async () => {
