@@ -1,7 +1,18 @@
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { nanoid, customAlphabet } from 'nanoid';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'together_secret_watch_party_key_2026';
+// Enforce strong secret; generate a secure random 256-bit key if unset
+const JWT_SECRET: string = (() => {
+  if (process.env.JWT_SECRET && process.env.JWT_SECRET.trim().length >= 16) {
+    return process.env.JWT_SECRET.trim();
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('[Security Error] JWT_SECRET environment variable must be set in production with at least 16 characters.');
+  }
+  // Generate cryptographically secure ephemeral secret for non-production environments
+  return crypto.randomBytes(32).toString('hex');
+})();
 
 // High-entropy, clean, user-friendly room codes: e.g. "a8k92x"
 const generateRoomAlphabet = customAlphabet('23456789abcdefghjkmnpqrstuvwxyz', 6);
@@ -43,9 +54,25 @@ export function signSessionToken(payload: SessionPayload): string {
 }
 
 export function verifySessionToken(token: string): SessionPayload | null {
+  if (!token || typeof token !== 'string') return null;
   try {
     return jwt.verify(token, JWT_SECRET) as SessionPayload;
   } catch (err) {
     return null;
   }
+}
+
+/**
+ * Constant-time string comparison to prevent timing attacks
+ */
+export function timingSafeCompare(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    // Perform dummy comparison of equal length to protect against length timing analysis
+    crypto.timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
 }

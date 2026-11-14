@@ -55,6 +55,7 @@ export function useRoomSocket({
 
   const [metadata, setMetadata] = useState<RoomMetadata | null>(null);
   const [playbackState, setPlaybackState] = useState<PlaybackState | null>(null);
+  const playbackStateRef = useRef<PlaybackState | null>(null);
   const [hostId, setHostId] = useState<string>('');
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -62,20 +63,140 @@ export function useRoomSocket({
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [isCallActive, setIsCallActive] = useState<boolean>(false);
+  const isCallActiveRef = useRef<boolean>(false);
   const [callParticipants, setCallParticipants] = useState<string[]>([]);
   const [callHostName, setCallHostName] = useState<string>('');
   const reconnectAttemptsRef = useRef(0);
+  const lastChatTimestampRef = useRef<number>(0);
+  const pollTimerRef = useRef<any>(null);
+
+  // Synchronize playback state ref
+  useEffect(() => {
+    playbackStateRef.current = playbackState;
+  }, [playbackState]);
+
+  useEffect(() => {
+    isCallActiveRef.current = isCallActive;
+  }, [isCallActive]);
+
+  // HTTP Polling fallback function for Vercel Serverless
+  const pollRoom = useCallback(async () => {
+    if (!roomId || !token) return;
+    try {
+      const res = await fetch(
+        `/api/rooms/${roomId}/poll?token=${encodeURIComponent(token)}&since=${lastChatTimestampRef.current}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.success) return;
+
+      // Mark status as connected since HTTP sync is actively running
+      setConnectionStatus((prev) => (prev === 'kicked' ? 'kicked' : 'connected'));
+
+      if (data.metadata) {
+        setMetadata(data.metadata);
+        setIsLocked(Boolean(data.metadata.isLocked));
+      }
+      if (data.hostId) setHostId(data.hostId);
+      if (data.participants) setParticipants(data.participants);
+      if (data.queue) setQueue(data.queue);
+
+      // Call state
+      if (typeof data.isCallActive === 'boolean') {
+        if (data.isCallActive && !isCallActiveRef.current) {
+          onCallStarted?.(data.callHostName || 'Creator', data.callParticipants || []);
+        } else if (!data.isCallActive && isCallActiveRef.current) {
+          onCallEnded?.();
+        }
+        setIsCallActive(data.isCallActive);
+      }
+      if (Array.isArray(data.callParticipants)) setCallParticipants(data.callParticipants);
+      if (data.callHostName) setCallHostName(data.callHostName);
+
+      // WebRTC Signals
+      if (Array.isArray(data.signals) && data.signals.length > 0) {
+        for (const sig of data.signals) {
+          onCallSignal?.(sig.senderId, sig.payload);
+        }
+      }
+
+      // Chat Messages
+      if (Array.isArray(data.recentChat) && data.recentChat.length > 0) {
+        const newMsgs = data.recentChat.filter(
+          (m: ChatMessage) => m.timestamp > lastChatTimestampRef.current
+        );
+        if (newMsgs.length > 0) {
+          lastChatTimestampRef.current = Math.max(
+            ...newMsgs.map((m: ChatMessage) => m.timestamp)
+          );
+          setChatMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            const fresh = newMsgs.filter((m: ChatMessage) => !existingIds.has(m.id));
+            return [...prev, ...fresh];
+          });
+          newMsgs.forEach((m: ChatMessage) => onNewChat?.(m));
+        }
+      }
+
+      // Playback State Sync
+      if (data.playback) {
+        const sPb = data.playback;
+        const cPb = playbackStateRef.current;
+
+        // Video Change check
+        if (sPb.videoId && cPb?.videoId && sPb.videoId !== cPb.videoId) {
+          setMetadata((prev) => (prev ? { ...prev, videoId: sPb.videoId, title: data.metadata?.title || prev.title } : null));
+          onVideoChange?.(sPb.videoId, data.metadata?.title);
+        }
+
+        // Status change check
+        if (sPb.status === 'playing' && cPb?.status !== 'playing') {
+          onPlaybackPlay?.(sPb.position, sPb.updatedAt, sPb.playbackRate || 1.0);
+        } else if (sPb.status === 'paused' && cPb?.status === 'playing') {
+          onPlaybackPause?.(sPb.position, sPb.updatedAt);
+        }
+
+        setPlaybackState(sPb);
+      }
+    } catch {
+      // ignore network blips in poll
+    }
+  }, [
+    roomId,
+    token,
+    onCallStarted,
+    onCallEnded,
+    onCallSignal,
+    onNewChat,
+    onVideoChange,
+    onPlaybackPlay,
+    onPlaybackPause,
+  ]);
 
   const connect = useCallback(() => {
     if (!roomId || !token) return;
+
+    // Start polling immediately to ensure instant room state
+    pollRoom();
+    if (!pollTimerRef.current) {
+      pollTimerRef.current = setInterval(pollRoom, 1500);
+    }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.port === '5173' ? 'localhost:4000' : window.location.host;
     const wsUrl = `${protocol}//${host}/api/rooms/${roomId}/connect?token=${encodeURIComponent(token)}`;
 
     setConnectionStatus((prev) => (prev === 'connected' ? 'reconnecting' : 'connecting'));
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+    } catch {
+      // WebSocket creation failed (e.g. unsupported platform) -> fallback to HTTP sync
+      setConnectionStatus('connected');
+      return;
+    }
 
     ws.onopen = () => {
       setConnectionStatus('connected');
@@ -96,7 +217,14 @@ export function useRoomSocket({
             if (hostId) setHostId(hostId);
             if (playback) setPlaybackState(playback);
             if (participants) setParticipants(participants);
-            if (recentChat) setChatMessages(recentChat);
+            if (recentChat) {
+              setChatMessages(recentChat);
+              if (recentChat.length > 0) {
+                lastChatTimestampRef.current = Math.max(
+                  ...recentChat.map((m: ChatMessage) => m.timestamp)
+                );
+              }
+            }
             if (queue) setQueue(queue);
             if (typeof isCallActive === 'boolean') setIsCallActive(isCallActive);
             if (Array.isArray(callParticipants)) setCallParticipants(callParticipants);
@@ -178,45 +306,47 @@ export function useRoomSocket({
           case 'chat:message': {
             const msg: ChatMessage = roomEvent.payload.message;
             setChatMessages((prev) => [...prev.slice(-99), msg]);
+            lastChatTimestampRef.current = Math.max(lastChatTimestampRef.current, msg.timestamp);
             onNewChat?.(msg);
             break;
           }
 
-          case 'reaction:send': {
+          case 'reaction:broadcast': {
             const reaction: Reaction = roomEvent.payload.reaction;
-            setReactions((prev) => [...prev.slice(-20), reaction]);
+            setReactions((prev) => [...prev.slice(-19), reaction]);
             onNewReaction?.(reaction);
             break;
           }
 
-          case 'member:join': {
-            const p: Participant = roomEvent.payload.participant;
+          case 'member:joined': {
+            const participant: Participant = roomEvent.payload.participant;
             setParticipants((prev) => {
-              if (prev.some((x) => x.id === p.id)) return prev;
-              return [...prev, p];
+              if (prev.some((p) => p.id === participant.id)) return prev;
+              return [...prev, participant];
             });
             break;
           }
 
-          case 'member:leave': {
-            const leftId = roomEvent.payload.participantId;
-            setParticipants((prev) => prev.filter((p) => p.id !== leftId));
+          case 'member:left': {
+            const { memberId } = roomEvent.payload;
+            setParticipants((prev) => prev.filter((p) => p.id !== memberId));
             break;
           }
 
-          case 'member:kick': {
-            setConnectionStatus('kicked');
-            onKicked?.(roomEvent.payload.message || 'You were kicked from this room');
+          case 'member:kicked': {
+            const { targetMemberId, reason } = roomEvent.payload;
+            setParticipants((prev) => prev.filter((p) => p.id !== targetMemberId));
+            onKicked?.(reason || 'You have been kicked by the host.');
             break;
           }
 
-          case 'host:transfer': {
+          case 'host:transferred': {
             const { newHostId } = roomEvent.payload;
             setHostId(newHostId);
             setParticipants((prev) =>
               prev.map((p) => ({
                 ...p,
-                role: p.id === newHostId ? 'host' : 'guest',
+                role: p.id === newHostId ? 'host' : p.role === 'host' ? 'guest' : p.role,
               }))
             );
             break;
@@ -239,7 +369,6 @@ export function useRoomSocket({
             break;
           }
 
-          // Video Call Real-Time Events
           case 'call:started': {
             const { hostName, callParticipants } = roomEvent.payload;
             setIsCallActive(true);
@@ -292,11 +421,12 @@ export function useRoomSocket({
         setConnectionStatus('kicked');
         return;
       }
-      setConnectionStatus('disconnected');
+      // On close, maintain connected status via HTTP Polling fallback
+      setConnectionStatus('connected');
 
-      if (reconnectAttemptsRef.current < 5) {
+      if (reconnectAttemptsRef.current < 3) {
         reconnectAttemptsRef.current++;
-        const timeout = Math.min(1000 * 2 ** reconnectAttemptsRef.current, 10000);
+        const timeout = Math.min(1000 * 2 ** reconnectAttemptsRef.current, 5000);
         setTimeout(() => {
           connect();
         }, timeout);
@@ -304,11 +434,13 @@ export function useRoomSocket({
     };
 
     ws.onerror = () => {
-      setConnectionStatus('disconnected');
+      // If WebSocket fails, stay connected via HTTP sync
+      setConnectionStatus('connected');
     };
   }, [
     roomId,
     token,
+    pollRoom,
     onPlaybackPlay,
     onPlaybackPause,
     onPlaybackSeek,
@@ -329,6 +461,10 @@ export function useRoomSocket({
   useEffect(() => {
     connect();
     return () => {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
       if (wsRef.current) {
         wsRef.current.close();
       }
@@ -337,6 +473,7 @@ export function useRoomSocket({
 
   const send = useCallback(
     (type: string, payload: Record<string, any> = {}) => {
+      // 1. Send via WebSocket if open
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         const event = {
           id: Math.random().toString(36).substring(2, 9),
@@ -349,8 +486,105 @@ export function useRoomSocket({
         };
         wsRef.current.send(JSON.stringify(event));
       }
+
+      // 2. Dual / HTTP Fallback endpoints for Vercel Serverless
+      if (type === 'playback:play') {
+        fetch(`/api/rooms/${roomId}/playback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            status: 'playing',
+            position: payload.position,
+            updatedAt: Date.now(),
+            playbackRate: payload.playbackRate || 1,
+          }),
+        }).catch(() => {});
+      } else if (type === 'playback:pause') {
+        fetch(`/api/rooms/${roomId}/playback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            status: 'paused',
+            position: payload.position,
+            updatedAt: Date.now(),
+          }),
+        }).catch(() => {});
+      } else if (type === 'playback:seek') {
+        fetch(`/api/rooms/${roomId}/playback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            status: payload.status || 'playing',
+            position: payload.position,
+            updatedAt: Date.now(),
+          }),
+        }).catch(() => {});
+      } else if (type === 'video:change') {
+        fetch(`/api/rooms/${roomId}/video`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, videoId: payload.videoId, title: payload.title }),
+        }).catch(() => {});
+      } else if (type === 'chat:message') {
+        fetch(`/api/rooms/${roomId}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, text: payload.text }),
+        })
+          .then(async (res) => {
+            if (res.ok) {
+              const d = await res.json();
+              if (d.message) {
+                setChatMessages((prev) => [...prev, d.message]);
+                lastChatTimestampRef.current = Math.max(
+                  lastChatTimestampRef.current,
+                  d.message.timestamp
+                );
+                onNewChat?.(d.message);
+              }
+            }
+          })
+          .catch(() => {});
+      } else if (type === 'call:start') {
+        fetch(`/api/rooms/${roomId}/call`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, action: 'start' }),
+        }).catch(() => {});
+      } else if (type === 'call:end') {
+        fetch(`/api/rooms/${roomId}/call`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, action: 'end' }),
+        }).catch(() => {});
+      } else if (type === 'call:join') {
+        fetch(`/api/rooms/${roomId}/call`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, action: 'join' }),
+        }).catch(() => {});
+      } else if (type === 'call:leave') {
+        fetch(`/api/rooms/${roomId}/call`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, action: 'leave' }),
+        }).catch(() => {});
+      } else if (type === 'call:signal') {
+        fetch(`/api/rooms/${roomId}/signal`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            targetParticipantId: payload.targetParticipantId,
+            payload,
+          }),
+        }).catch(() => {});
+      }
     },
-    [roomId]
+    [roomId, token, onNewChat]
   );
 
   const emitPlay = useCallback((position: number) => send('playback:play', { position }), [send]);

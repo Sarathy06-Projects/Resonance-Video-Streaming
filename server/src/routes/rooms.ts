@@ -11,6 +11,7 @@ import {
   getRandomColor,
   signSessionToken,
   verifySessionToken,
+  timingSafeCompare,
 } from '../utils/auth';
 import { query } from '../db';
 
@@ -20,7 +21,7 @@ const router = Router();
 router.post('/validate-url', async (req: Request, res: Response) => {
   try {
     const { url } = req.body;
-    if (!url || typeof url !== 'string') {
+    if (!url || typeof url !== 'string' || url.length > 500) {
       res.status(400).json({ error: 'Please enter a valid YouTube link' });
       return;
     }
@@ -34,7 +35,8 @@ router.post('/validate-url', async (req: Request, res: Response) => {
     const info = await fetchYouTubeMetadata(videoId);
     res.json({ valid: true, videoId, info });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Error validating URL' });
+    console.error('[POST /api/rooms/validate-url] Error:', err);
+    res.status(500).json({ error: 'Error validating URL' });
   }
 });
 
@@ -43,19 +45,25 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     const { videoUrl, hostName, isPrivate, passcode, theme } = req.body;
 
-    if (!videoUrl || !isValidYouTubeUrl(videoUrl)) {
+    if (!videoUrl || typeof videoUrl !== 'string' || videoUrl.length > 500 || !isValidYouTubeUrl(videoUrl)) {
       res.status(400).json({ error: 'Valid YouTube URL is required' });
       return;
     }
 
-    const hostDisplayName = (hostName && typeof hostName === 'string' && hostName.trim()) || 'Host';
+    // Sanitize and bound host name
+    const rawName = typeof hostName === 'string' ? hostName.trim() : '';
+    const hostDisplayName = (rawName.slice(0, 50)) || 'Host';
+
+    // Sanitize passcode if provided
+    const cleanPasscode = typeof passcode === 'string' ? passcode.trim().slice(0, 30) : undefined;
+    const cleanTheme = typeof theme === 'string' ? theme.trim().slice(0, 20) : 'obsidian';
 
     const { roomId, hostId, coordinator, videoInfo } = await roomManager.createRoom({
-      videoUrl,
+      videoUrl: videoUrl.trim(),
       hostName: hostDisplayName,
       isPrivate: Boolean(isPrivate),
-      passcode,
-      theme,
+      passcode: cleanPasscode,
+      theme: cleanTheme,
     });
 
     const hostColor = getRandomColor();
@@ -78,7 +86,7 @@ router.post('/', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('[POST /api/rooms] Error:', err);
-    res.status(500).json({ error: err.message || 'Failed to create room' });
+    res.status(500).json({ error: 'Failed to create room. Please try again.' });
   }
 });
 
@@ -86,6 +94,11 @@ router.post('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    if (!id || typeof id !== 'string' || id.length > 30) {
+      res.status(400).json({ error: 'Invalid room identifier' });
+      return;
+    }
+
     const coordinator = await roomManager.getCoordinator(id);
 
     if (!coordinator) {
@@ -107,7 +120,8 @@ router.get('/:id', async (req: Request, res: Response) => {
       hasPasscode: Boolean(coordinator.metadata.passcode),
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Error fetching room' });
+    console.error('[GET /api/rooms/:id] Error:', err);
+    res.status(500).json({ error: 'Error fetching room details' });
   }
 });
 
@@ -117,6 +131,11 @@ router.post('/:id/join', async (req: Request, res: Response) => {
     const { id } = req.params;
     const { guestName, passcode, existingToken } = req.body;
 
+    if (!id || typeof id !== 'string' || id.length > 30) {
+      res.status(400).json({ error: 'Invalid room identifier' });
+      return;
+    }
+
     const coordinator = await roomManager.getCoordinator(id);
     if (!coordinator) {
       res.status(404).json({ error: 'Room not found or has expired' });
@@ -124,7 +143,7 @@ router.post('/:id/join', async (req: Request, res: Response) => {
     }
 
     // Check if client has existing valid token (reconnect)
-    if (existingToken) {
+    if (existingToken && typeof existingToken === 'string') {
       const decoded = verifySessionToken(existingToken);
       if (decoded && decoded.roomId === id) {
         res.json({
@@ -155,15 +174,17 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       return;
     }
 
-    // Check passcode if room is private
+    // Check passcode if room is private (Constant-time comparison)
     if (coordinator.metadata.isPrivate && coordinator.metadata.passcode) {
-      if (!passcode || passcode.trim() !== coordinator.metadata.passcode) {
+      const providedPasscode = typeof passcode === 'string' ? passcode.trim() : '';
+      if (!providedPasscode || !timingSafeCompare(providedPasscode, coordinator.metadata.passcode)) {
         res.status(401).json({ error: 'Incorrect room passcode', code: 'PASSCODE_REQUIRED' });
         return;
       }
     }
 
-    const name = (guestName && typeof guestName === 'string' && guestName.trim()) || 'Guest';
+    const rawGuestName = typeof guestName === 'string' ? guestName.trim() : '';
+    const name = (rawGuestName.slice(0, 50)) || 'Guest';
     const userId = generateUserId();
     const color = getRandomColor();
     const role = 'guest';
@@ -195,7 +216,7 @@ router.post('/:id/join', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('[POST /api/rooms/:id/join] Error:', err);
-    res.status(500).json({ error: err.message || 'Error joining room' });
+    res.status(500).json({ error: 'Error joining room' });
   }
 });
 
@@ -231,7 +252,8 @@ router.post('/:id/lock', async (req: Request, res: Response) => {
 
     res.json({ success: true, isLocked: coordinator.metadata.isLocked });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Error locking room' });
+    console.error('[POST /api/rooms/:id/lock] Error:', err);
+    res.status(500).json({ error: 'Error locking room' });
   }
 });
 
@@ -265,7 +287,376 @@ router.delete('/:id/members/:memberId', async (req: Request, res: Response) => {
 
     res.json({ success: true, removed: memberId });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Error removing member' });
+    console.error('[DELETE /api/rooms/:id/members] Error:', err);
+    res.status(500).json({ error: 'Error removing member' });
+  }
+});
+
+// Playback Sync Endpoint
+router.post('/:id/playback', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, status, position, updatedAt, playbackRate, videoId } = req.body;
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id || decoded.role !== 'host') {
+      res.status(403).json({ error: 'Unauthorized: only host controls playback' });
+      return;
+    }
+
+    const coordinator = await roomManager.getCoordinator(id);
+    if (coordinator) {
+      coordinator.playbackState = {
+        ...coordinator.playbackState,
+        videoId: videoId || coordinator.playbackState.videoId,
+        status: status || 'paused',
+        position: typeof position === 'number' ? position : 0,
+        updatedAt: typeof updatedAt === 'number' ? updatedAt : Date.now(),
+        playbackRate: typeof playbackRate === 'number' ? playbackRate : 1,
+      };
+
+      coordinator.broadcast({
+        id: generateUserId(),
+        roomId: id,
+        type: status === 'playing' ? 'playback:play' : status === 'paused' ? 'playback:pause' : 'playback:seek',
+        senderId: decoded.userId,
+        sequence: coordinator.getNextSequence(),
+        sentAt: Date.now(),
+        payload: {
+          position: coordinator.playbackState.position,
+          updatedAt: coordinator.playbackState.updatedAt,
+          playbackRate: coordinator.playbackState.playbackRate,
+          status: coordinator.playbackState.status,
+        },
+      });
+    }
+
+    const playback = {
+      videoId: videoId || coordinator?.playbackState.videoId,
+      status: status || 'paused',
+      position: typeof position === 'number' ? position : 0,
+      updatedAt: typeof updatedAt === 'number' ? updatedAt : Date.now(),
+      playbackRate: typeof playbackRate === 'number' ? playbackRate : 1,
+    };
+
+    await query('UPDATE rooms SET playback_state = $1 WHERE id = $2', [JSON.stringify(playback), id]);
+    res.json({ success: true, playback });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Error updating playback' });
+  }
+});
+
+// Change Video Endpoint
+router.post('/:id/video', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, videoUrl, videoId, title } = req.body;
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id || decoded.role !== 'host') {
+      res.status(403).json({ error: 'Unauthorized: only host can change video' });
+      return;
+    }
+
+    let finalVideoId = videoId;
+    let finalTitle = title;
+    if (videoUrl) {
+      const extracted = extractYouTubeId(videoUrl);
+      if (extracted) {
+        finalVideoId = extracted;
+        const meta = await fetchYouTubeMetadata(extracted);
+        finalTitle = meta.title;
+      }
+    }
+
+    if (!finalVideoId) {
+      res.status(400).json({ error: 'Invalid video' });
+      return;
+    }
+
+    const coordinator = await roomManager.getCoordinator(id);
+    if (coordinator) {
+      coordinator.playbackState = {
+        ...coordinator.playbackState,
+        videoId: finalVideoId,
+        status: 'playing',
+        position: 0,
+        updatedAt: Date.now(),
+        playbackRate: 1,
+      };
+      coordinator.metadata.videoId = finalVideoId;
+      coordinator.metadata.title = finalTitle || 'YouTube Video';
+      coordinator.broadcast({
+        id: generateUserId(),
+        roomId: id,
+        type: 'video:change',
+        senderId: decoded.userId,
+        sequence: coordinator.getNextSequence(),
+        sentAt: Date.now(),
+        payload: { videoId: finalVideoId, title: finalTitle, position: 0, status: 'playing' },
+      });
+    }
+
+    const newPlayback = {
+      videoId: finalVideoId,
+      status: 'playing',
+      position: 0,
+      updatedAt: Date.now(),
+      playbackRate: 1,
+    };
+
+    await query(
+      'UPDATE rooms SET video_id = $1, title = $2, playback_state = $3 WHERE id = $4',
+      [finalVideoId, finalTitle || 'YouTube Video', JSON.stringify(newPlayback), id]
+    );
+
+    res.json({ success: true, videoId: finalVideoId, title: finalTitle, playback: newPlayback });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Error changing video' });
+  }
+});
+
+// Send Chat Message Endpoint
+router.post('/:id/chat', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, text } = req.body;
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session' });
+      return;
+    }
+
+    const cleanText = (typeof text === 'string' ? text.trim() : '').slice(0, 500);
+    if (!cleanText) {
+      res.status(400).json({ error: 'Message cannot be empty' });
+      return;
+    }
+
+    const coordinator = await roomManager.getCoordinator(id);
+    const msgId = 'msg_' + generateUserId();
+    const chatMsg = {
+      id: msgId,
+      roomId: id,
+      senderId: decoded.userId,
+      senderName: decoded.name,
+      senderRole: decoded.role,
+      senderColor: decoded.color || '#6366f1',
+      text: cleanText,
+      timestamp: Date.now(),
+    };
+
+    if (coordinator) {
+      coordinator.chatHistory.push(chatMsg);
+      coordinator.broadcast({
+        id: generateUserId(),
+        roomId: id,
+        type: 'chat:message',
+        senderId: decoded.userId,
+        sequence: coordinator.getNextSequence(),
+        sentAt: Date.now(),
+        payload: { message: chatMsg },
+      });
+    }
+
+    await query(
+      `INSERT INTO room_messages (id, room_id, sender_id, sender_name, sender_role, message, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      [msgId, id, decoded.userId, decoded.name, decoded.role, cleanText]
+    );
+
+    res.json({ success: true, message: chatMsg });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Error sending message' });
+  }
+});
+
+// Manage Call Endpoint
+router.post('/:id/call', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, action } = req.body;
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session' });
+      return;
+    }
+
+    const rRes = await query('SELECT is_call_active, call_participants, call_host_name FROM rooms WHERE id = $1', [id]);
+    if (rRes.rows.length === 0) {
+      res.status(404).json({ error: 'Room not found' });
+      return;
+    }
+    const room = rRes.rows[0];
+    let participants: string[] = Array.isArray(room.call_participants) ? room.call_participants : [];
+
+    const coordinator = await roomManager.getCoordinator(id);
+
+    if (action === 'start') {
+      if (decoded.role !== 'host') {
+        res.status(403).json({ error: 'Only host can start a group call' });
+        return;
+      }
+      participants = [decoded.userId];
+      await query(
+        'UPDATE rooms SET is_call_active = true, call_host_name = $1, call_participants = $2 WHERE id = $3',
+        [decoded.name, JSON.stringify(participants), id]
+      );
+      if (coordinator) {
+        coordinator.isCallActive = true;
+        coordinator.callParticipants = new Set([decoded.userId]);
+        coordinator.broadcast({
+          id: generateUserId(),
+          roomId: id,
+          type: 'call:started',
+          senderId: decoded.userId,
+          sequence: coordinator.getNextSequence(),
+          sentAt: Date.now(),
+          payload: { hostName: decoded.name, callParticipants: [decoded.userId] },
+        });
+      }
+    } else if (action === 'end') {
+      if (decoded.role !== 'host') {
+        res.status(403).json({ error: 'Only host can end a group call' });
+        return;
+      }
+      await query("UPDATE rooms SET is_call_active = false, call_participants = '[]'::jsonb WHERE id = $1", [id]);
+      if (coordinator) {
+        coordinator.isCallActive = false;
+        coordinator.callParticipants.clear();
+        coordinator.broadcast({
+          id: generateUserId(),
+          roomId: id,
+          type: 'call:ended',
+          senderId: decoded.userId,
+          sequence: coordinator.getNextSequence(),
+          sentAt: Date.now(),
+          payload: {},
+        });
+      }
+    } else if (action === 'join') {
+      if (!participants.includes(decoded.userId)) {
+        participants.push(decoded.userId);
+        await query('UPDATE rooms SET call_participants = $1 WHERE id = $2', [JSON.stringify(participants), id]);
+      }
+      if (coordinator) {
+        coordinator.callParticipants.add(decoded.userId);
+        coordinator.broadcast({
+          id: generateUserId(),
+          roomId: id,
+          type: 'call:participant_joined',
+          senderId: decoded.userId,
+          sequence: coordinator.getNextSequence(),
+          sentAt: Date.now(),
+          payload: { participantId: decoded.userId, callParticipants: Array.from(coordinator.callParticipants) },
+        });
+      }
+    } else if (action === 'leave') {
+      participants = participants.filter((p) => p !== decoded.userId);
+      await query('UPDATE rooms SET call_participants = $1 WHERE id = $2', [JSON.stringify(participants), id]);
+      if (coordinator) {
+        coordinator.callParticipants.delete(decoded.userId);
+        coordinator.broadcast({
+          id: generateUserId(),
+          roomId: id,
+          type: 'call:participant_left',
+          senderId: decoded.userId,
+          sequence: coordinator.getNextSequence(),
+          sentAt: Date.now(),
+          payload: { participantId: decoded.userId, callParticipants: Array.from(coordinator.callParticipants) },
+        });
+      }
+    }
+
+    res.json({ success: true, isCallActive: action === 'start' ? true : action === 'end' ? false : room.is_call_active, callParticipants: participants });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Error managing call' });
+  }
+});
+
+// Signal Exchange Endpoint
+router.post('/:id/signal', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, targetParticipantId, payload } = req.body;
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session' });
+      return;
+    }
+
+    await query(
+      `INSERT INTO room_signals (room_id, sender_id, recipient_id, payload, created_at)
+       VALUES ($1, $2, $3, $4, NOW())`,
+      [id, decoded.userId, targetParticipantId, JSON.stringify(payload)]
+    );
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Error sending signal' });
+  }
+});
+
+// Real-time Poll Endpoint
+router.get('/:id/poll', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const token = req.headers.authorization?.replace('Bearer ', '') || (req.query.token as string);
+    const since = parseInt(req.query.since as string, 10) || 0;
+
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session' });
+      return;
+    }
+
+    await query(
+      'UPDATE room_members SET last_seen_at = NOW() WHERE room_id = $1 AND user_id = $2',
+      [id, decoded.userId]
+    );
+
+    const coordinator = await roomManager.getCoordinator(id);
+    if (!coordinator) {
+      res.status(404).json({ error: 'Room not found or expired' });
+      return;
+    }
+
+    const participants = Array.from(coordinator.participants.values()).map((p) => ({
+      id: p.id,
+      name: p.name,
+      role: p.role,
+      color: p.color,
+      joinedAt: p.joinedAt,
+      lastActive: p.lastActive,
+    }));
+
+    const recentChat = coordinator.chatHistory.filter((m) => m.timestamp > since);
+
+    const sRes = await query(
+      `DELETE FROM room_signals
+       WHERE room_id = $1 AND recipient_id = $2
+       RETURNING sender_id, payload`,
+      [id, decoded.userId]
+    );
+    const signals = sRes.rows.map((s) => ({
+      senderId: s.sender_id,
+      payload: s.payload,
+    }));
+
+    res.json({
+      success: true,
+      metadata: coordinator.metadata,
+      hostId: coordinator.metadata.hostId,
+      playback: coordinator.playbackState,
+      participants,
+      recentChat,
+      queue: coordinator.queue,
+      isCallActive: coordinator.isCallActive,
+      callParticipants: Array.from(coordinator.callParticipants),
+      callHostName: coordinator.metadata.title,
+      signals,
+      serverTime: Date.now(),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Error polling room state' });
   }
 });
 

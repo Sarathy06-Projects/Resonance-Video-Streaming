@@ -4,6 +4,7 @@ import path from 'path';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { testConnection, pool } from './db';
+import { runMigrations } from './migrate';
 import roomsRouter from './routes/rooms';
 import billingRouter from './routes/billing';
 import { setupWebSocketServer } from './websocket';
@@ -13,8 +14,60 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
+// Security: Disable x-powered-by header to prevent fingerprinting
+app.disable('x-powered-by');
+
+// Security Headers Middleware
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
+// HTTP API Rate Limiter (Defense against DoS / Brute-force)
+const ipRequestMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 120;
+
+app.use('/api', (req, res, next) => {
+  // Allow health check without rate limiting
+  if (req.path === '/health') return next();
+
+  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const record = ipRequestMap.get(ip);
+
+  if (!record || now > record.resetTime) {
+    ipRequestMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return next();
+  }
+
+  if (record.count >= RATE_LIMIT_MAX_REQUESTS) {
+    res.status(429).json({ error: 'Too many requests. Please slow down.' });
+    return;
+  }
+
+  record.count++;
+  next();
+});
+
+// Periodic cleanup of rate limit map
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of ipRequestMap.entries()) {
+    if (now > record.resetTime) {
+      ipRequestMap.delete(ip);
+    }
+  }
+}, 5 * 60 * 1000);
+
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '100kb' })); // Bound request body size
 
 // Health check endpoint (PRD Section 10.1)
 app.get('/api/health', async (_req, res) => {
@@ -28,7 +81,8 @@ app.get('/api/health', async (_req, res) => {
       uptime: process.uptime(),
     });
   } catch (err: any) {
-    res.status(500).json({ status: 'error', database: err.message });
+    console.error('[Health Check Error]', err);
+    res.status(500).json({ status: 'error', database: 'Database unavailable' });
   }
 });
 
@@ -62,6 +116,11 @@ async function start() {
   const dbOk = await testConnection();
   if (dbOk) {
     console.log('[Together Server] Neon PostgreSQL verified successfully.');
+    try {
+      await runMigrations();
+    } catch (e) {
+      console.error('[Together Server] Migration check failed:', e);
+    }
   } else {
     console.warn('[Together Server] Warning: Database connection issues detected.');
   }

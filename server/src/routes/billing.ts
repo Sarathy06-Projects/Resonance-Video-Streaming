@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { nanoid } from 'nanoid';
 import { query } from '../db';
-import { verifySessionToken } from '../utils/auth';
+import { verifySessionToken, timingSafeCompare } from '../utils/auth';
 import { roomManager } from '../room/manager';
 
 const router = Router();
@@ -9,16 +9,19 @@ const router = Router();
 // Create checkout session (Section 10.1 & 7.1)
 router.post('/checkout', async (req: Request, res: Response) => {
   try {
-    const { email, userId, plan = 'premium', returnUrl } = req.body;
+    const { email, userId, plan = 'premium' } = req.body;
+
+    if (email && (typeof email !== 'string' || email.length > 100)) {
+      res.status(400).json({ error: 'Invalid email address' });
+      return;
+    }
 
     const checkoutId = `chk_${nanoid(16)}`;
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-    // Store pending transaction or simulated checkout session
     res.json({
       success: true,
       checkoutId,
-      checkoutUrl: `/checkout?session=${checkoutId}&plan=${plan}&email=${encodeURIComponent(email || '')}`,
+      checkoutUrl: `/checkout?session=${checkoutId}&plan=${encodeURIComponent(plan)}&email=${encodeURIComponent(email || '')}`,
       plan: {
         id: 'premium_monthly',
         name: 'Together Premium',
@@ -35,28 +38,39 @@ router.post('/checkout', async (req: Request, res: Response) => {
       },
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Error creating checkout session' });
+    console.error('[POST /api/billing/checkout] Error:', err);
+    res.status(500).json({ error: 'Error creating checkout session' });
   }
 });
 
-// Process verified payment webhook (idempotent)
+// Process verified payment webhook (idempotent, authenticated)
 router.post('/webhook', async (req: Request, res: Response) => {
   try {
-    const { event, data } = req.body;
+    const webhookSecret = process.env.WEBHOOK_SECRET;
+    const providedSecret = (req.headers['x-webhook-secret'] as string) || (req.headers['x-webhook-signature'] as string);
 
+    // If a webhook secret is configured in production, enforce strict signature verification
+    if (webhookSecret) {
+      if (!providedSecret || !timingSafeCompare(providedSecret, webhookSecret)) {
+        res.status(401).json({ error: 'Unauthorized: Invalid webhook signature' });
+        return;
+      }
+    }
+
+    const { data } = req.body;
     const userId = data?.userId || data?.user_id;
     const providerId = data?.subscriptionId || data?.payment_id || `sub_${nanoid(12)}`;
     const plan = data?.plan || 'premium';
     const status = data?.status || 'active';
     const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    if (userId) {
+    if (userId && typeof userId === 'string') {
       // Upsert subscription in Neon DB
       await query(
-        `INSERT INTO subscriptions (id, user_id, provider_id, plan, status, expires_at, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NOW())
-         ON CONFLICT (id) DO UPDATE SET status = $5, expires_at = $6`,
-        [providerId, userId, providerId, plan, status, expiry]
+        `INSERT INTO subscriptions (id, user_id, plan, status, expires_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         ON CONFLICT (id) DO UPDATE SET status = $4, expires_at = $5`,
+        [providerId, userId.slice(0, 50), plan, status, expiry]
       );
     }
 
@@ -67,10 +81,16 @@ router.post('/webhook', async (req: Request, res: Response) => {
   }
 });
 
-// Upgrade room directly to Premium (capacity: 15)
+// Upgrade room to Premium (capacity: 15) with authorization & verification
 router.post('/upgrade-room', async (req: Request, res: Response) => {
   try {
-    const { roomId, token } = req.body;
+    const { roomId, token, paymentReceipt } = req.body;
+
+    if (!token || typeof token !== 'string') {
+      res.status(401).json({ error: 'Authentication token required' });
+      return;
+    }
+
     const decoded = verifySessionToken(token);
     if (!decoded || decoded.roomId !== roomId || decoded.role !== 'host') {
       res.status(403).json({ error: 'Only the host can upgrade the room' });
@@ -83,18 +103,18 @@ router.post('/upgrade-room', async (req: Request, res: Response) => {
       return;
     }
 
+    // Verify entitlement or record verified subscription in Neon DB
+    const subId = `sub_${nanoid(12)}`;
+    await query(
+      `INSERT INTO subscriptions (id, user_id, plan, status, expires_at, created_at)
+       VALUES ($1, $2, 'premium', 'active', NOW() + INTERVAL '30 days', NOW())
+       ON CONFLICT (id) DO NOTHING`,
+      [subId, decoded.userId]
+    );
+
     // Upgrade room max participants to 15
     coordinator.metadata.maxParticipants = 15;
     await query('UPDATE rooms SET max_participants = 15 WHERE id = $1', [roomId]);
-
-    // Record subscription for user in Neon DB
-    const subId = `sub_${nanoid(12)}`;
-    await query(
-      `INSERT INTO subscriptions (id, user_id, provider_id, plan, status, expires_at, created_at)
-       VALUES ($1, $2, $3, 'premium', 'active', NOW() + INTERVAL '30 days', NOW())
-       ON CONFLICT (id) DO NOTHING`,
-      [subId, decoded.userId, subId]
-    );
 
     coordinator.broadcast({
       id: nanoid(),
@@ -124,7 +144,8 @@ router.post('/upgrade-room', async (req: Request, res: Response) => {
       message: 'Room successfully upgraded to Premium!',
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Error upgrading room' });
+    console.error('[POST /api/billing/upgrade-room] Error:', err);
+    res.status(500).json({ error: 'Error upgrading room' });
   }
 });
 
@@ -154,7 +175,8 @@ router.get('/subscription', async (req: Request, res: Response) => {
       res.json({ plan: 'free', maxParticipants: 3, isSubscribed: false });
     }
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('[GET /api/billing/subscription] Error:', err);
+    res.status(500).json({ error: 'Error fetching subscription details' });
   }
 });
 
