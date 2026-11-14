@@ -14,7 +14,7 @@ import {
   Film,
   Tv,
 } from 'lucide-react';
-import { UniversalPlayerProps, PlayerAdapter, PlayerCapabilities } from './types';
+import { UniversalPlayerProps, PlayerAdapter, PlaybackCapabilities, CompatibilityStatus } from './types';
 import { detectProviderQuick, PROVIDER_META, VideoProviderType } from '../utils/resolver';
 import { ReactionsOverlay, ReactionBar } from '../components/ReactionsOverlay';
 import { YouTubeAdapter } from './YouTubeAdapter';
@@ -22,11 +22,16 @@ import { Html5Adapter } from './Html5Adapter';
 import { VimeoAdapter } from './VimeoAdapter';
 import { DailymotionAdapter } from './DailymotionAdapter';
 import { TwitchAdapter } from './TwitchAdapter';
+import { GenericEmbedAdapter } from './GenericEmbedAdapter';
+import { ExternalPlaybackView } from './ExternalPlaybackView';
+import { COMPATIBILITY_META } from '../utils/resolver';
 
 export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
   videoId,
   provider: propProvider,
   videoUrl,
+  compatibility: propCompatibility,
+  playbackMode: propPlaybackMode,
   isHost,
   hostName,
   authoritativePlayback,
@@ -42,17 +47,39 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
   const playerWrapperRef = useRef<HTMLDivElement | null>(null);
   const adapterRef = useRef<PlayerAdapter | null>(null);
 
-  // Determine active provider
+  // Determine active provider & compatibility
   const detected = useMemo(() => {
-    if (propProvider) return { provider: propProvider, videoId };
+    if (propProvider) {
+      const q = detectProviderQuick(videoUrl || videoId);
+      return {
+        provider: propProvider,
+        videoId,
+        compatibility: propCompatibility || q?.compatibility || 'fully_syncable',
+        playbackMode: propPlaybackMode || q?.playbackMode || (propProvider === 'external' ? 'external' : 'player'),
+      };
+    }
     const detectedInfo = detectProviderQuick(videoUrl || videoId);
     if (detectedInfo) return detectedInfo;
-    return { provider: 'youtube' as VideoProviderType, videoId };
-  }, [propProvider, videoId, videoUrl]);
+    return {
+      provider: 'youtube' as VideoProviderType,
+      videoId,
+      compatibility: 'fully_syncable' as CompatibilityStatus,
+      playbackMode: 'player' as const,
+    };
+  }, [propProvider, propCompatibility, propPlaybackMode, videoId, videoUrl]);
 
   const activeProvider = detected.provider;
   const activeVideoId = detected.videoId;
-  const activeMediaUrl = videoUrl || (activeProvider === 'direct' || activeProvider === 'hls' || activeProvider === 'dash' ? activeVideoId : '');
+  const activeCompatibility = detected.compatibility;
+  const activePlaybackMode = detected.playbackMode;
+  const activeMediaUrl =
+    videoUrl ||
+    (activeProvider === 'direct' ||
+    activeProvider === 'hls' ||
+    activeProvider === 'dash' ||
+    activeProvider === 'generic_embed'
+      ? activeVideoId
+      : '');
 
   // UI state
   const [showControls, setShowControls] = useState(true);
@@ -83,7 +110,7 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
   }, []);
 
   // Capabilities
-  const capabilities = useMemo<PlayerCapabilities>(() => {
+  const capabilities = useMemo<PlaybackCapabilities>(() => {
     if (adapterRef.current) return adapterRef.current.getCapabilities();
     if (activeProvider === 'twitch' && !/^\d+$/.test(activeVideoId)) {
       return { canSeek: false, canPause: true, canSyncRate: false, isLive: true };
@@ -344,54 +371,87 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
     >
       {/* Provider Player Canvas */}
       <div className="w-full h-full relative aspect-video flex items-center justify-center">
-        {activeProvider === 'youtube' && (
-          <YouTubeAdapter
-            ref={adapterRef}
-            videoId={activeVideoId}
-            callbacks={callbacks}
+        {activePlaybackMode === 'external' ? (
+          <ExternalPlaybackView
+            url={videoUrl || activeVideoId}
+            title={meta.name}
+            isHost={isHost}
+            hostName={hostName}
+            compatibility={activeCompatibility}
+            authoritativePlayback={authoritativePlayback}
+            onTogglePlay={handleTogglePlay}
           />
-        )}
+        ) : (
+          <>
+            {activeProvider === 'youtube' && (
+              <YouTubeAdapter
+                ref={adapterRef}
+                videoId={activeVideoId}
+                callbacks={callbacks}
+              />
+            )}
 
-        {(activeProvider === 'direct' || activeProvider === 'hls' || activeProvider === 'dash') && (
-          <Html5Adapter
-            ref={adapterRef}
-            url={activeMediaUrl}
-            format={activeProvider}
-            callbacks={callbacks}
-          />
-        )}
+            {(activeProvider === 'direct' || activeProvider === 'hls' || activeProvider === 'dash') && (
+              <Html5Adapter
+                ref={adapterRef}
+                url={activeMediaUrl}
+                format={activeProvider as any}
+                callbacks={callbacks}
+              />
+            )}
 
-        {activeProvider === 'vimeo' && (
-          <VimeoAdapter
-            ref={adapterRef}
-            videoId={activeVideoId}
-            callbacks={callbacks}
-          />
-        )}
+            {activeProvider === 'vimeo' && (
+              <VimeoAdapter
+                ref={adapterRef}
+                videoId={activeVideoId}
+                callbacks={callbacks}
+              />
+            )}
 
-        {activeProvider === 'dailymotion' && (
-          <DailymotionAdapter
-            ref={adapterRef}
-            videoId={activeVideoId}
-            callbacks={callbacks}
-          />
-        )}
+            {activeProvider === 'dailymotion' && (
+              <DailymotionAdapter
+                ref={adapterRef}
+                videoId={activeVideoId}
+                callbacks={callbacks}
+              />
+            )}
 
-        {activeProvider === 'twitch' && (
-          <TwitchAdapter
-            ref={adapterRef}
-            videoId={activeVideoId}
-            callbacks={callbacks}
-          />
-        )}
+            {activeProvider === 'twitch' && (
+              <TwitchAdapter
+                ref={adapterRef}
+                videoId={activeVideoId}
+                callbacks={callbacks}
+              />
+            )}
 
-        {/* Viewer transparent click layer: clicking anywhere syncs & unmutes playback */}
-        {!isHost && (
-          <div
-            className="absolute inset-0 z-10 cursor-pointer"
-            title="Click to sync and unmute playback"
-            onClick={handleManualSync}
-          />
+            {(activeProvider === 'generic_embed' ||
+              activeProvider === 'streamable' ||
+              activeProvider === 'loom' ||
+              activeProvider === 'wistia') && (
+              <GenericEmbedAdapter
+                ref={adapterRef}
+                embedUrl={
+                  activeProvider === 'streamable'
+                    ? `https://streamable.com/e/${activeVideoId}`
+                    : activeProvider === 'loom'
+                    ? `https://www.loom.com/embed/${activeVideoId}`
+                    : activeProvider === 'wistia'
+                    ? `https://fast.wistia.net/embed/iframe/${activeVideoId}`
+                    : activeMediaUrl || activeVideoId
+                }
+                callbacks={callbacks}
+              />
+            )}
+
+            {/* Viewer transparent click layer: clicking anywhere syncs & unmutes playback */}
+            {!isHost && (
+              <div
+                className="absolute inset-0 z-10 cursor-pointer"
+                title="Click to sync and unmute playback"
+                onClick={handleManualSync}
+              />
+            )}
+          </>
         )}
       </div>
 
@@ -459,13 +519,18 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
         <span className={`px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-semibold border backdrop-blur-md shadow-md ${meta.badgeBg}`}>
           {meta.name}
         </span>
+        {COMPATIBILITY_META[activeCompatibility as keyof typeof COMPATIBILITY_META] && (
+          <span className={`px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-semibold border backdrop-blur-md shadow-md ${COMPATIBILITY_META[activeCompatibility as keyof typeof COMPATIBILITY_META].badgeClass}`}>
+            {COMPATIBILITY_META[activeCompatibility as keyof typeof COMPATIBILITY_META].label}
+          </span>
+        )}
         {capabilities.isLive ? (
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 backdrop-blur-md">
             <Radio className="w-3 h-3 text-red-500 animate-pulse" />
             LIVE
           </span>
         ) : (
-          !isHost && (
+          !isHost && activePlaybackMode !== 'external' && (
             <span
               className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-medium border backdrop-blur-md transition-colors ${
                 driftSeconds < 0.5

@@ -27,6 +27,8 @@ router.post('/validate-url', async (req: Request, res: Response) => {
       provider: resolved.provider,
       videoId: resolved.videoId,
       capabilities: resolved.capabilities,
+      compatibility: resolved.compatibility,
+      playbackMode: resolved.playbackMode,
       info: {
         title: resolved.title,
         authorName: resolved.authorName,
@@ -34,6 +36,9 @@ router.post('/validate-url', async (req: Request, res: Response) => {
         provider: resolved.provider,
         format: resolved.format,
         capabilities: resolved.capabilities,
+        compatibility: resolved.compatibility,
+        playbackMode: resolved.playbackMode,
+        explanation: resolved.explanation,
         supported: resolved.supported,
       },
     });

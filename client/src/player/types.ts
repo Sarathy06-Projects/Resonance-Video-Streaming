@@ -1,11 +1,9 @@
-import { Reaction, VideoProviderType } from '../types';
+import { Reaction, VideoProviderType, CompatibilityStatus, PlaybackCapabilities, PlaybackState } from '../types';
 
-export interface PlayerCapabilities {
-  canSeek: boolean;
-  canPause: boolean;
-  canSyncRate: boolean;
-  isLive: boolean;
-}
+export type { PlaybackCapabilities, CompatibilityStatus };
+export type PlayerCapabilities = PlaybackCapabilities;
+
+export type PlaybackMode = 'player' | 'embed' | 'external';
 
 export interface AdapterCallbacks {
   onReady: () => void;
@@ -18,6 +16,21 @@ export interface AdapterCallbacks {
   onError: (err: string) => void;
 }
 
+/**
+ * Common playback provider interface requested in Resonance specifications
+ */
+export interface PlaybackProvider {
+  load(url: string): Promise<void>;
+  play(): Promise<void>;
+  pause(): Promise<void>;
+  seek(time: number): Promise<void>;
+  getCurrentTime(): number;
+  getDuration(): number;
+  getPlaybackState(): PlaybackState;
+  getCapabilities(): PlaybackCapabilities;
+  destroy(): void;
+}
+
 export interface PlayerAdapter {
   play: () => Promise<void> | void;
   pause: () => void;
@@ -27,7 +40,7 @@ export interface PlayerAdapter {
   setMuted: (muted: boolean) => void;
   getCurrentTime: () => number;
   getDuration: () => number;
-  getCapabilities: () => PlayerCapabilities;
+  getCapabilities: () => PlaybackCapabilities;
   destroy: () => void;
 }
 
@@ -35,6 +48,8 @@ export interface UniversalPlayerProps {
   videoId: string;
   provider?: VideoProviderType;
   videoUrl?: string;
+  compatibility?: CompatibilityStatus;
+  playbackMode?: PlaybackMode;
   isHost: boolean;
   hostName: string;
   authoritativePlayback: {

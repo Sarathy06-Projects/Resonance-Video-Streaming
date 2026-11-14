@@ -15,7 +15,7 @@ import {
   Film,
 } from 'lucide-react';
 import { api } from '../services/api';
-import { detectProviderQuick, PROVIDER_META } from '../utils/resolver';
+import { detectProviderQuick, PROVIDER_META, COMPATIBILITY_META } from '../utils/resolver';
 
 interface LandingPageProps {
   onRoomCreated: (roomId: string, token: string, hostName: string) => void;
@@ -169,24 +169,38 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
             {/* Video Preview Card if detected */}
             {previewInfo && (
-              <div className="p-2.5 rounded-xl bg-dark-850 border border-dark-700/80 flex items-center gap-3 animate-fade-in">
-                <img
-                  src={previewInfo.thumbnailUrl}
-                  alt={previewInfo.title}
-                  className="w-20 h-12 object-cover rounded-lg bg-dark-950 flex-shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-white truncate">{previewInfo.title}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-[11px] text-gray-400 truncate">{previewInfo.authorName}</p>
-                    {previewInfo.provider && (
-                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-brand-500/20 text-brand-300 uppercase font-mono">
-                        {previewInfo.provider}
-                      </span>
-                    )}
+              <div className="p-3 rounded-xl bg-dark-850 border border-dark-700/80 flex flex-col gap-2.5 animate-fade-in">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={previewInfo.thumbnailUrl}
+                    alt={previewInfo.title}
+                    className="w-20 h-12 object-cover rounded-lg bg-dark-950 flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-white truncate">{previewInfo.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-[11px] text-gray-400 truncate">{previewInfo.authorName}</p>
+                      {previewInfo.provider && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-brand-500/20 text-brand-300 uppercase font-mono">
+                          {previewInfo.provider}
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mr-1" />
                 </div>
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mr-1" />
+
+                {/* Compatibility status pill and explanation */}
+                {detected && COMPATIBILITY_META[detected.compatibility] && (
+                  <div className="pt-2 border-t border-dark-750 flex items-start gap-2">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold whitespace-nowrap ${COMPATIBILITY_META[detected.compatibility].badgeClass}`}>
+                      {COMPATIBILITY_META[detected.compatibility].label}
+                    </span>
+                    <p className="text-[11px] text-gray-300 leading-tight">
+                      {previewInfo.explanation || COMPATIBILITY_META[detected.compatibility].description}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

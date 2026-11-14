@@ -5,13 +5,34 @@ export type VideoProviderType =
   | 'vimeo'
   | 'dailymotion'
   | 'dash'
-  | 'twitch';
+  | 'twitch'
+  | 'streamable'
+  | 'loom'
+  | 'wistia'
+  | 'generic_embed'
+  | 'external';
+
+export type CompatibilityStatus =
+  | 'fully_syncable'
+  | 'limited_sync'
+  | 'external_only'
+  | 'embedding_blocked'
+  | 'auth_required'
+  | 'unsupported';
+
+export interface PlaybackCapabilities {
+  canSeek: boolean;
+  canPause: boolean;
+  canSyncRate: boolean;
+  isLive: boolean;
+}
 
 export type PlaybackStatus = 'playing' | 'paused' | 'ended';
 
 export type PlaybackState = {
   videoId: string;
   provider?: string;
+  compatibility?: CompatibilityStatus;
   status: PlaybackStatus;
   position: number;
   updatedAt: number;

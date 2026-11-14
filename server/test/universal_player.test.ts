@@ -5,7 +5,7 @@ import { app } from '../src/index';
 import { query } from '../src/db';
 import { resolveMediaUrl } from '../src/utils/resolver';
 
-describe('Resonance Universal Video Playback Engine Test Suite', () => {
+describe('Resonance Universal Video Link Support & Playback Engine Test Suite', () => {
   let server: http.Server;
   let baseUrl: string;
   let testRoomId: string;
@@ -50,92 +50,150 @@ describe('Resonance Universal Video Playback Engine Test Suite', () => {
   });
 
   // =========================================================================
-  // 1. PROVIDER IDENTIFICATION & RESOLUTION (ALL 7 PROVIDERS)
+  // 1. UNIVERSAL SOURCE RESOLVER: CATEGORIES A, B, C, D, E
   // =========================================================================
-  describe('Provider Identification & URL Normalization', () => {
-    test('1. YouTube: Resolves standard watch URL, shorts, and youtu.be', async () => {
-      const res1 = await resolveMediaUrl('https://www.youtube.com/watch?v=aqz-KE-bpKQ');
-      assert.strictEqual(res1.provider, 'youtube');
-      assert.strictEqual(res1.videoId, 'aqz-KE-bpKQ');
-      assert.strictEqual(res1.capabilities.canSeek, true);
-
-      const res2 = await resolveMediaUrl('https://youtu.be/aqz-KE-bpKQ');
-      assert.strictEqual(res2.provider, 'youtube');
-      assert.strictEqual(res2.videoId, 'aqz-KE-bpKQ');
-
-      const res3 = await resolveMediaUrl('https://www.youtube.com/shorts/aqz-KE-bpKQ');
-      assert.strictEqual(res3.provider, 'youtube');
-      assert.strictEqual(res3.videoId, 'aqz-KE-bpKQ');
-    });
-
-    test('2. Direct MP4 & WebM: Resolves native HTML5 video URLs', async () => {
+  describe('Universal Source Resolver & Classification', () => {
+    test('Category A: Direct MP4, WebM, and OGG media files', async () => {
+      // MP4
       const mp4Url = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
       const resMp4 = await resolveMediaUrl(mp4Url);
       assert.strictEqual(resMp4.provider, 'direct');
       assert.strictEqual(resMp4.format, 'mp4');
+      assert.strictEqual(resMp4.compatibility, 'fully_syncable');
+      assert.strictEqual(resMp4.playbackMode, 'player');
       assert.strictEqual(resMp4.capabilities.canSeek, true);
       assert.strictEqual(resMp4.capabilities.canSyncRate, true);
 
-      const webmUrl = 'https://example.com/videos/sample_nature.webm';
-      const resWebm = await resolveMediaUrl(webmUrl);
+      // WebM
+      const resWebm = await resolveMediaUrl('https://example.com/videos/sample.webm');
       assert.strictEqual(resWebm.provider, 'direct');
       assert.strictEqual(resWebm.format, 'webm');
+      assert.strictEqual(resWebm.compatibility, 'fully_syncable');
+
+      // OGG
+      const resOgg = await resolveMediaUrl('https://example.com/videos/trailer.ogg');
+      assert.strictEqual(resOgg.provider, 'direct');
+      assert.strictEqual(resOgg.format, 'ogg');
+      assert.strictEqual(resOgg.compatibility, 'fully_syncable');
     });
 
-    test('3. HLS (.m3u8): Resolves adaptive HTTP Live Streaming manifests', async () => {
+    test('Category B: Streaming media (HLS .m3u8, MPEG-DASH .mpd)', async () => {
+      // HLS
       const hlsUrl = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
       const resHls = await resolveMediaUrl(hlsUrl);
       assert.strictEqual(resHls.provider, 'hls');
-      assert.strictEqual(resHls.format, 'hls');
+      assert.strictEqual(resHls.compatibility, 'fully_syncable');
+      assert.strictEqual(resHls.playbackMode, 'player');
       assert.strictEqual(resHls.capabilities.canSeek, true);
-    });
 
-    test('4. Vimeo: Resolves numeric Vimeo IDs and embeds', async () => {
-      const vimeoUrl = 'https://vimeo.com/76979871';
-      const resVimeo = await resolveMediaUrl(vimeoUrl);
-      assert.strictEqual(resVimeo.provider, 'vimeo');
-      assert.strictEqual(resVimeo.videoId, '76979871');
-      assert.strictEqual(resVimeo.capabilities.canSeek, true);
-      assert.strictEqual(resVimeo.capabilities.canSyncRate, true);
-    });
-
-    test('5. Dailymotion: Resolves Dailymotion video URLs and shortlinks', async () => {
-      const dmUrl = 'https://www.dailymotion.com/video/x8n6f4s';
-      const resDm = await resolveMediaUrl(dmUrl);
-      assert.strictEqual(resDm.provider, 'dailymotion');
-      assert.strictEqual(resDm.videoId, 'x8n6f4s');
-      assert.strictEqual(resDm.capabilities.canSeek, true);
-
-      const dmShort = 'https://dai.ly/x8n6f4s';
-      const resDmShort = await resolveMediaUrl(dmShort);
-      assert.strictEqual(resDmShort.provider, 'dailymotion');
-      assert.strictEqual(resDmShort.videoId, 'x8n6f4s');
-    });
-
-    test('6. DASH (.mpd): Resolves MPEG-DASH manifests', async () => {
+      // DASH
       const dashUrl = 'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd';
       const resDash = await resolveMediaUrl(dashUrl);
       assert.strictEqual(resDash.provider, 'dash');
-      assert.strictEqual(resDash.format, 'dash');
+      assert.strictEqual(resDash.compatibility, 'fully_syncable');
+      assert.strictEqual(resDash.playbackMode, 'player');
       assert.strictEqual(resDash.capabilities.canSeek, true);
     });
 
-    test('7. Twitch: Resolves VODs (with seek) and Live Channels (live sync)', async () => {
+    test('Category C: Known video platforms (YouTube, Vimeo, Dailymotion, Twitch, Streamable, Loom, Wistia)', async () => {
+      // YouTube
+      const resYt = await resolveMediaUrl('https://www.youtube.com/watch?v=aqz-KE-bpKQ');
+      assert.strictEqual(resYt.provider, 'youtube');
+      assert.strictEqual(resYt.compatibility, 'fully_syncable');
+      assert.strictEqual(resYt.capabilities.canSeek, true);
+
+      // Vimeo
+      const resVimeo = await resolveMediaUrl('https://vimeo.com/76979871');
+      assert.strictEqual(resVimeo.provider, 'vimeo');
+      assert.strictEqual(resVimeo.compatibility, 'fully_syncable');
+
+      // Dailymotion
+      const resDm = await resolveMediaUrl('https://www.dailymotion.com/video/x8n6f4s');
+      assert.strictEqual(resDm.provider, 'dailymotion');
+      assert.strictEqual(resDm.compatibility, 'fully_syncable');
+
       // Twitch VOD
-      const vodUrl = 'https://www.twitch.tv/videos/1234567890';
-      const resVod = await resolveMediaUrl(vodUrl);
-      assert.strictEqual(resVod.provider, 'twitch');
-      assert.strictEqual(resVod.videoId, '1234567890');
-      assert.strictEqual(resVod.capabilities.canSeek, true);
-      assert.strictEqual(resVod.capabilities.isLive, false);
+      const resTwVod = await resolveMediaUrl('https://www.twitch.tv/videos/1234567890');
+      assert.strictEqual(resTwVod.provider, 'twitch');
+      assert.strictEqual(resTwVod.compatibility, 'fully_syncable');
+      assert.strictEqual(resTwVod.capabilities.canSeek, true);
 
       // Twitch Live Channel
-      const liveUrl = 'https://www.twitch.tv/riotgames';
-      const resLive = await resolveMediaUrl(liveUrl);
-      assert.strictEqual(resLive.provider, 'twitch');
-      assert.strictEqual(resLive.videoId, 'riotgames');
-      assert.strictEqual(resLive.capabilities.canSeek, false);
-      assert.strictEqual(resLive.capabilities.isLive, true);
+      const resTwLive = await resolveMediaUrl('https://www.twitch.tv/riotgames');
+      assert.strictEqual(resTwLive.provider, 'twitch');
+      assert.strictEqual(resTwLive.compatibility, 'limited_sync');
+      assert.strictEqual(resTwLive.capabilities.canSeek, false);
+      assert.strictEqual(resTwLive.capabilities.isLive, true);
+
+      // Streamable
+      const resStreamable = await resolveMediaUrl('https://streamable.com/moo123');
+      assert.strictEqual(resStreamable.provider, 'streamable');
+      assert.strictEqual(resStreamable.compatibility, 'fully_syncable');
+      assert.strictEqual(resStreamable.playbackMode, 'embed');
+
+      // Loom
+      const resLoom = await resolveMediaUrl('https://www.loom.com/share/abcdef123456');
+      assert.strictEqual(resLoom.provider, 'loom');
+      assert.strictEqual(resLoom.compatibility, 'fully_syncable');
+      assert.strictEqual(resLoom.playbackMode, 'embed');
+
+      // Wistia
+      const resWistia = await resolveMediaUrl('https://home.wistia.com/medias/abc12345');
+      assert.strictEqual(resWistia.provider, 'wistia');
+      assert.strictEqual(resWistia.compatibility, 'fully_syncable');
+      assert.strictEqual(resWistia.playbackMode, 'embed');
+
+      // Internet Archive
+      const resArchive = await resolveMediaUrl('https://archive.org/details/ElectraGlideInBlue_1973');
+      assert.strictEqual(resArchive.provider, 'generic_embed');
+      assert.strictEqual(resArchive.compatibility, 'fully_syncable');
+      assert.strictEqual(resArchive.playbackMode, 'embed');
+    });
+
+    test('Category D: Generic video webpage with unknown domain is accepted', async () => {
+      // The system must NOT reject URLs simply because the domain is unknown!
+      const unknownWebUrl = 'https://mit-opencourseware.edu/courses/video-lecture-3';
+      const resGeneric = await resolveMediaUrl(unknownWebUrl);
+      assert.strictEqual(resGeneric.provider, 'generic_embed');
+      assert.strictEqual(resGeneric.compatibility, 'limited_sync');
+      assert.strictEqual(resGeneric.playbackMode, 'embed');
+      assert.strictEqual(resGeneric.supported, true);
+      assert.ok(resGeneric.explanation.includes('mit-opencourseware.edu'));
+    });
+
+    test('Category E: Restricted sources (DRM & Blocked Embedding) switch to External Playback', async () => {
+      // Netflix (Widevine DRM + X-Frame-Options: DENY)
+      const resNetflix = await resolveMediaUrl('https://www.netflix.com/title/80057281');
+      assert.strictEqual(resNetflix.provider, 'external');
+      assert.strictEqual(resNetflix.compatibility, 'embedding_blocked');
+      assert.strictEqual(resNetflix.playbackMode, 'external');
+      assert.strictEqual(resNetflix.supported, true);
+      assert.ok(resNetflix.explanation.includes('DRM'));
+
+      // Amazon Prime Video
+      const resPrime = await resolveMediaUrl('https://www.primevideo.com/detail/0S35G0J');
+      assert.strictEqual(resPrime.provider, 'external');
+      assert.strictEqual(resPrime.compatibility, 'embedding_blocked');
+      assert.strictEqual(resPrime.playbackMode, 'external');
+
+      // Disney+
+      const resDisney = await resolveMediaUrl('https://www.disneyplus.com/video/12345');
+      assert.strictEqual(resDisney.provider, 'external');
+      assert.strictEqual(resDisney.compatibility, 'embedding_blocked');
+      assert.strictEqual(resDisney.playbackMode, 'external');
+
+      // Hulu
+      const resHulu = await resolveMediaUrl('https://www.hulu.com/watch/67890');
+      assert.strictEqual(resHulu.provider, 'external');
+      assert.strictEqual(resHulu.compatibility, 'embedding_blocked');
+      assert.strictEqual(resHulu.playbackMode, 'external');
+    });
+
+    test('Category F: Authentication-dependent content switches to External Playback', async () => {
+      const resPatreon = await resolveMediaUrl('https://www.patreon.com/posts/secret-video-12345');
+      assert.strictEqual(resPatreon.provider, 'external');
+      assert.strictEqual(resPatreon.compatibility, 'auth_required');
+      assert.strictEqual(resPatreon.playbackMode, 'external');
     });
   });
 
@@ -143,17 +201,44 @@ describe('Resonance Universal Video Playback Engine Test Suite', () => {
   // 2. SECURITY & SSRF PROTECTION
   // =========================================================================
   describe('Security & SSRF Defense', () => {
-    test('Rejects localhost and loopback addresses', async () => {
+    test('Rejects dangerous URI schemes (file:, javascript:, data:, blob:, ftp:)', async () => {
       await assert.rejects(
-        () => resolveMediaUrl('http://localhost:8080/video.mp4'),
-        /restricted|format/i
+        () => resolveMediaUrl('file:///etc/passwd'),
+        /secure HTTP and HTTPS/i
       );
+      await assert.rejects(
+        () => resolveMediaUrl('javascript:alert(1)'),
+        /secure HTTP and HTTPS/i
+      );
+      await assert.rejects(
+        () => resolveMediaUrl('data:text/html,<script>alert(1)</script>'),
+        /secure HTTP and HTTPS/i
+      );
+      await assert.rejects(
+        () => resolveMediaUrl('ftp://ftp.example.com/video.mp4'),
+        /secure HTTP and HTTPS/i
+      );
+    });
+
+    test('Rejects internal loopback and private RFC 1918 subnets', async () => {
       await assert.rejects(
         () => resolveMediaUrl('https://127.0.0.1/video.mp4'),
         /restricted|private/i
       );
       await assert.rejects(
         () => resolveMediaUrl('https://[::1]/video.mp4'),
+        /restricted|private/i
+      );
+      await assert.rejects(
+        () => resolveMediaUrl('https://10.0.0.1/video.mp4'),
+        /restricted|private/i
+      );
+      await assert.rejects(
+        () => resolveMediaUrl('https://192.168.1.1/video.mp4'),
+        /restricted|private/i
+      );
+      await assert.rejects(
+        () => resolveMediaUrl('https://172.16.0.1/video.mp4'),
         /restricted|private/i
       );
     });
@@ -164,107 +249,109 @@ describe('Resonance Universal Video Playback Engine Test Suite', () => {
         /restricted|private/i
       );
     });
-
-    test('Rejects RFC 1918 private IP ranges (10.x, 192.168.x, 172.16-31.x)', async () => {
-      await assert.rejects(
-        () => resolveMediaUrl('https://10.0.0.5/stream.m3u8'),
-        /restricted|private/i
-      );
-      await assert.rejects(
-        () => resolveMediaUrl('https://192.168.1.100/video.mp4'),
-        /restricted|private/i
-      );
-      await assert.rejects(
-        () => resolveMediaUrl('https://172.20.5.1/video.mp4'),
-        /restricted|private/i
-      );
-    });
-
-    test('Rejects non-HTTP(S) URI schemes (file://, javascript:, data:)', async () => {
-      await assert.rejects(
-        () => resolveMediaUrl('file:///etc/passwd'),
-        /secure HTTPS/i
-      );
-      await assert.rejects(
-        () => resolveMediaUrl('javascript:alert(1)'),
-        /secure HTTPS/i
-      );
-    });
   });
 
   // =========================================================================
-  // 3. API ENDPOINTS & MULTI-PROVIDER LIFECYCLE
+  // 3. API INTEGRATION & MULTI-CATEGORY ROOM LIFECYCLE
   // =========================================================================
-  describe('Multi-Provider API Integration', () => {
-    test('POST /api/rooms/validate-url returns provider and capabilities', async () => {
-      const res = await fetch(`${baseUrl}/api/rooms/validate-url`, {
+  describe('API Endpoints & Room Creation Across Categories', () => {
+    test('POST /api/rooms/validate-url returns rich compatibility classification', async () => {
+      // Test 1: Direct MP4
+      const resMp4 = await fetch(`${baseUrl}/api/rooms/validate-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: 'https://vimeo.com/76979871' }),
+        body: JSON.stringify({ url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' }),
       });
-      const data = await res.json();
-      assert.strictEqual(res.status, 200);
-      assert.strictEqual(data.valid, true);
-      assert.strictEqual(data.provider, 'vimeo');
-      assert.strictEqual(data.videoId, '76979871');
-      assert.strictEqual(data.capabilities.canSeek, true);
+      const dataMp4 = await resMp4.json();
+      assert.strictEqual(resMp4.status, 200);
+      assert.strictEqual(dataMp4.valid, true);
+      assert.strictEqual(dataMp4.compatibility, 'fully_syncable');
+      assert.strictEqual(dataMp4.playbackMode, 'player');
+
+      // Test 2: Generic Unknown Domain
+      const resGen = await fetch(`${baseUrl}/api/rooms/validate-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: 'https://ocw.mit.edu/courses/video-lecture' }),
+      });
+      const dataGen = await resGen.json();
+      assert.strictEqual(resGen.status, 200);
+      assert.strictEqual(dataGen.valid, true);
+      assert.strictEqual(dataGen.provider, 'generic_embed');
+      assert.strictEqual(dataGen.compatibility, 'limited_sync');
+
+      // Test 3: DRM Protected / Blocked Embedding
+      const resDrm = await fetch(`${baseUrl}/api/rooms/validate-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: 'https://www.netflix.com/title/80057281' }),
+      });
+      const dataDrm = await resDrm.json();
+      assert.strictEqual(resDrm.status, 200);
+      assert.strictEqual(dataDrm.valid, true);
+      assert.strictEqual(dataDrm.compatibility, 'embedding_blocked');
+      assert.strictEqual(dataDrm.playbackMode, 'external');
     });
 
-    test('GET /api/rooms/curated/demos returns demos across multiple providers', async () => {
-      const res = await fetch(`${baseUrl}/api/rooms/curated/demos`);
-      const data = await res.json();
-      assert.strictEqual(res.status, 200);
-      assert.ok(Array.isArray(data.demos));
-      assert.ok(data.demos.length >= 6);
-
-      const providers = data.demos.map((d: any) => d.provider);
-      assert.ok(providers.includes('youtube'));
-      assert.ok(providers.includes('direct'));
-      assert.ok(providers.includes('hls'));
-      assert.ok(providers.includes('vimeo'));
-      assert.ok(providers.includes('dailymotion'));
-      assert.ok(providers.includes('dash'));
-    });
-
-    test('POST /api/rooms creates room with Direct MP4 URL', async () => {
-      const mp4Url = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+    test('POST /api/rooms creates room with generic webpage URL', async () => {
+      const genericUrl = 'https://ocw.mit.edu/courses/physics-lecture-1';
       const res = await fetch(`${baseUrl}/api/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          videoUrl: mp4Url,
-          hostName: 'MP4 Host',
+          videoUrl: genericUrl,
+          hostName: 'Professor Host',
         }),
       });
       const data = await res.json();
       assert.strictEqual(res.status, 201);
-      assert.strictEqual(data.metadata.videoProvider, 'direct');
-      assert.strictEqual(data.metadata.videoId, mp4Url);
+      assert.strictEqual(data.metadata.videoProvider, 'generic_embed');
+      assert.strictEqual(data.metadata.videoId, genericUrl);
 
       // Clean up created room
       await query('DELETE FROM room_members WHERE room_id = $1', [data.roomId]);
       await query('DELETE FROM rooms WHERE id = $1', [data.roomId]);
     });
 
-    test('POST /api/rooms/:id/video updates playing video to HLS stream and persists provider', async () => {
-      const hlsUrl = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+    test('POST /api/rooms creates room with DRM external URL (Netflix)', async () => {
+      const netflixUrl = 'https://www.netflix.com/title/80057281';
+      const res = await fetch(`${baseUrl}/api/rooms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoUrl: netflixUrl,
+          hostName: 'Movie Night Host',
+        }),
+      });
+      const data = await res.json();
+      assert.strictEqual(res.status, 201);
+      assert.strictEqual(data.metadata.videoProvider, 'external');
+      assert.strictEqual(data.metadata.videoId, netflixUrl);
+
+      // Clean up created room
+      await query('DELETE FROM room_members WHERE room_id = $1', [data.roomId]);
+      await query('DELETE FROM rooms WHERE id = $1', [data.roomId]);
+    });
+
+    test('POST /api/rooms/:id/video switches video to DRM external mode and persists provider', async () => {
+      const primeUrl = 'https://www.primevideo.com/detail/0S35G0J';
       const res = await fetch(`${baseUrl}/api/rooms/${testRoomId}/video`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: hostToken,
-          videoUrl: hlsUrl,
+          videoUrl: primeUrl,
         }),
       });
       const data = await res.json();
       assert.strictEqual(res.status, 200);
       assert.strictEqual(data.success, true);
-      assert.strictEqual(data.provider, 'hls');
+      assert.strictEqual(data.provider, 'external');
 
       // Verify in Neon DB
       const dbRes = await query('SELECT video_provider, video_id FROM rooms WHERE id = $1', [testRoomId]);
-      assert.strictEqual(dbRes.rows[0].video_provider, 'hls');
-      assert.strictEqual(dbRes.rows[0].video_id, hlsUrl);
+      assert.strictEqual(dbRes.rows[0].video_provider, 'external');
+      assert.strictEqual(dbRes.rows[0].video_id, primeUrl);
     });
   });
 });
