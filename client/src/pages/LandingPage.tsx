@@ -165,7 +165,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
   const [isValidating, setIsValidating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
-  const [curatedDemos, setCuratedDemos] = useState<any[]>([]);
 
   // Scroll detection for navbar
   useEffect(() => {
@@ -173,16 +172,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
     onScroll();
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  // Fetch curated demos on load
-  useEffect(() => {
-    api
-      .getCuratedDemos()
-      .then((res) => {
-        if (res && res.demos) setCuratedDemos(res.demos);
-      })
-      .catch(() => {});
   }, []);
 
   // Debounced URL validation
@@ -239,22 +228,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
     } finally {
       setIsCreating(false);
     }
-  };
-
-  const selectDemoVideo = (demo: any) => {
-    const url =
-      demo.url ||
-      (demo.videoId?.startsWith('http')
-        ? demo.videoId
-        : `https://www.youtube.com/watch?v=${demo.videoId}`);
-    setVideoUrl(url);
-    setPreviewInfo({
-      videoId: demo.videoId,
-      title: demo.title,
-      thumbnailUrl: demo.thumbnail,
-      authorName: demo.channel,
-      provider: demo.provider,
-    });
   };
 
   const detected = detectProviderQuick(videoUrl);
@@ -416,11 +389,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.22 }}
             className="mt-10 max-w-xl mx-auto"
           >
-            <div className="rounded-2xl border border-white/[0.08] bg-[#0c0e14]/90 p-5 sm:p-6 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl text-left">
+            <div className="rounded-2xl border border-white/[0.08] bg-[#0c0e14]/90 p-6 sm:p-7 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl text-left">
               <form onSubmit={handleCreateRoom} className="space-y-4">
                 {/* 1. Video URL Input with Auto-Detected Provider Pill */}
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center justify-between mb-2">
                     <label className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
                       Video Link
                     </label>
@@ -436,9 +409,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                       value={videoUrl}
                       onChange={(e) => setVideoUrl(e.target.value)}
                       placeholder="Paste YouTube, MP4, HLS, Vimeo, Google Drive, Twitch..."
-                      className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2.5 text-xs text-white placeholder-white/30 outline-none pr-9 transition-colors"
+                      className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-4 py-2.5 text-xs text-white placeholder-white/30 outline-none pr-9 transition-colors"
                     />
-                    <Link2 className="w-3.5 h-3.5 text-white/30 absolute right-3 pointer-events-none" />
+                    <Link2 className="w-3.5 h-3.5 text-white/30 absolute right-3.5 pointer-events-none" />
                   </div>
                 </div>
 
@@ -465,56 +438,88 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                   </div>
                 )}
 
-                {/* 2. Display Name & Passcode Controls */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-1.5">
-                      Your Name
-                    </label>
-                    <input
-                      type="text"
-                      value={hostName}
-                      onChange={(e) => setHostName(e.target.value)}
-                      placeholder="Alex (Host)"
-                      maxLength={30}
-                      className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2 text-xs text-white placeholder-white/30 outline-none transition-colors"
-                    />
+                {/* 2. Display Name Input */}
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-2">
+                    Your Name
+                  </label>
+                  <input
+                    type="text"
+                    value={hostName}
+                    onChange={(e) => setHostName(e.target.value)}
+                    placeholder="Alex (Host)"
+                    maxLength={30}
+                    className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-4 py-2.5 text-xs text-white placeholder-white/30 outline-none transition-colors"
+                  />
+                </div>
+
+                {/* 3. Password Toggle Switch */}
+                <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+                        isPrivate
+                          ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
+                          : 'bg-white/[0.04] text-white/40 border border-white/[0.06]'
+                      }`}
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-white/90">Require room password</p>
+                      <p className="text-[10px] text-white/40 truncate">
+                        {isPrivate ? 'Only people with the passcode can enter' : 'Anyone with the link can join freely'}
+                      </p>
+                    </div>
                   </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
-                        Room Security
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setIsPrivate(!isPrivate)}
-                        className={`text-[10px] font-medium transition-colors ${
-                          isPrivate ? 'text-indigo-400' : 'text-white/40 hover:text-white/70'
-                        }`}
-                      >
-                        {isPrivate ? 'Passcode Enabled' : 'Public Room'}
-                      </button>
-                    </div>
-                    {isPrivate ? (
-                      <input
-                        type="text"
-                        value={passcode}
-                        onChange={(e) => setPasscode(e.target.value)}
-                        placeholder="Enter room passcode..."
-                        className="w-full rounded-xl bg-white/[0.04] border border-indigo-400/30 px-3.5 py-2 text-xs text-white placeholder-white/30 outline-none"
-                      />
-                    ) : (
-                      <div
-                        onClick={() => setIsPrivate(true)}
-                        className="w-full rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] px-3.5 py-2 text-xs text-white/40 cursor-pointer flex items-center justify-between transition-colors"
-                      >
-                        <span>Anyone with link can join</span>
-                        <Lock className="w-3 h-3 text-white/30" />
-                      </div>
-                    )}
-                  </div>
+                  {/* Apple-style Toggle Switch */}
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isPrivate}
+                    onClick={() => {
+                      setIsPrivate(!isPrivate);
+                      if (isPrivate) setPasscode('');
+                    }}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      isPrivate ? 'bg-white' : 'bg-white/15 hover:bg-white/20'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full shadow-md ring-0 transition duration-200 ease-in-out ${
+                        isPrivate ? 'translate-x-4 bg-black' : 'translate-x-0 bg-white/70'
+                      }`}
+                    />
+                  </button>
                 </div>
+
+                {/* Passcode Input Field (Smoothly Revealed When Toggle Is Active) */}
+                <AnimatePresence>
+                  {isPrivate && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                      className="overflow-hidden"
+                    >
+                      <div className="pt-0.5">
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-2">
+                          Room Passcode
+                        </label>
+                        <input
+                          type="text"
+                          value={passcode}
+                          onChange={(e) => setPasscode(e.target.value)}
+                          placeholder="Enter room passcode (e.g. watch123)"
+                          autoFocus
+                          className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-4 py-2.5 text-xs text-white placeholder-white/30 outline-none transition-colors"
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {error && <p className="text-[11px] text-rose-400">{error}</p>}
 
@@ -522,33 +527,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                 <button
                   type="submit"
                   disabled={isCreating || isValidating}
-                  className="w-full py-3 rounded-xl bg-white hover:bg-white/90 text-black font-semibold text-xs tracking-tight transition-all hover:scale-[1.008] active:scale-[0.99] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                  className="w-full py-3.5 rounded-xl bg-white hover:bg-white/90 text-black font-semibold text-xs tracking-tight transition-all hover:scale-[1.008] active:scale-[0.99] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg cursor-pointer mt-1"
                 >
                   <Play className="w-3.5 h-3.5 fill-black" />
                   <span>{isCreating ? 'Creating Watch Room...' : 'Start a room with someone'}</span>
                 </button>
               </form>
-
-              {/* Curated Demo Chips */}
-              {curatedDemos.length > 0 && (
-                <div className="mt-5 pt-4 border-t border-white/[0.06]">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-2">
-                    Or try a curated demonstration:
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {curatedDemos.slice(0, 4).map((demo) => (
-                      <button
-                        key={demo.videoId}
-                        onClick={() => selectDemoVideo(demo)}
-                        className="text-[11px] text-white/70 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] hover:border-white/[0.12] px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5"
-                      >
-                        <Play className="w-2.5 h-2.5 fill-white/60" />
-                        <span>{demo.title}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Supported Platforms with Brand Logos */}
