@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Share2,
   Settings,
@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRoomSocket } from '../hooks/useRoomSocket';
-import { useLiveKitCall, CallMode } from '../hooks/useLiveKitCall';
+import { useAudioCall } from '../hooks/useAudioCall';
 import { VideoPlayer } from '../components/VideoPlayer';
 import { LiveChat } from '../components/LiveChat';
 import { ParticipantsList } from '../components/ParticipantsList';
@@ -27,7 +27,7 @@ import { InviteModal } from '../components/InviteModal';
 import { UpgradeModal } from '../components/UpgradeModal';
 import { RoomSettingsModal } from '../components/RoomSettingsModal';
 import { ChangeVideoModal } from '../components/ChangeVideoModal';
-import { VideoCallGrid } from '../components/VideoCallGrid';
+import { AudioCallBar } from '../components/AudioCallBar';
 import { PROVIDER_META } from '../utils/resolver';
 
 interface WatchRoomPageProps {
@@ -52,6 +52,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
 
   const p2pSignalRef = useRef<((senderId: string, payload: any) => void) | null>(null);
   const p2pStateRef = useRef<((senderId: string, state: any) => void) | null>(null);
+  const audioEventRef = useRef<((event: any) => void) | null>(null);
 
   const {
     connectionStatus,
@@ -87,11 +88,13 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     emitLeaveCall,
     emitP2PStreamSignal,
     emitP2PStreamState,
+    emitAudioEvent,
   } = useRoomSocket({
     roomId,
     token,
     onP2PStreamSignal: (senderId, payload) => p2pSignalRef.current?.(senderId, payload),
     onP2PStreamState: (senderId, state) => p2pStateRef.current?.(senderId, state),
+    onAudioEvent: (event) => audioEventRef.current?.(event),
     onKicked: (msg) => {
       alert(msg || 'You were removed from this room.');
       onLeaveRoom();
@@ -162,52 +165,19 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     ? effectiveUserName
     : callHostName || 'Host';
 
-  // Unified LiveKit Calling Hook
-  const {
-    isInCall,
-    activeCallMode,
-    isConnecting,
-    callError,
-    isMicMuted,
-    isCameraOff,
-    localStream,
-    remoteStreams,
-    speakingParticipants,
-    joinCall,
-    leaveCall,
-    toggleMic,
-    toggleCamera,
-  } = useLiveKitCall({
+  // Production-Ready 5-Person WebRTC Mesh Audio Call Hook (STUN Only, Zero Server Cost)
+  const audioCall = useAudioCall({
     roomId,
     token,
-    currentUserId,
-    currentUserName: userName,
-    isCallActive,
-    callMode,
-    callParticipants,
+    myUserId: currentUserId,
+    myUserName: effectiveUserName,
+    isHost,
+    emitAudioEvent,
   });
 
-  const handleStartCall = async (mode: CallMode) => {
-    if (!isHost) return;
-    emitStartCall(mode);
-    await joinCall(mode);
-  };
-
-  const handleEndCall = () => {
-    if (!isHost) return;
-    leaveCall();
-    emitEndCall();
-  };
-
-  const handleJoinCall = async (mode?: CallMode) => {
-    emitJoinCall();
-    await joinCall(mode || callMode || 'video');
-  };
-
-  const handleLeaveCall = () => {
-    leaveCall();
-    emitLeaveCall();
-  };
+  useEffect(() => {
+    audioEventRef.current = audioCall.handleAudioEvent;
+  }, [audioCall.handleAudioEvent]);
 
   const handleCopyRoomId = () => {
     navigator.clipboard.writeText(roomId);
@@ -278,11 +248,11 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
-          {/* Active Call Badge if call is live */}
-          {isCallActive && (
+          {/* Active Audio Call Badge if call is live */}
+          {audioCall.isCallActive && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Call Live</span>
+              <span>Voice Live ({audioCall.participants.length}/5)</span>
             </div>
           )}
 
@@ -356,29 +326,26 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
             />
           </div>
 
-          {/* Group Calling Section below Video */}
-          <VideoCallGrid
-            isCallActive={isCallActive}
-            callMode={callMode}
-            isInCall={isInCall}
-            isConnecting={isConnecting}
-            callError={callError}
-            isHost={isHost}
-            hostName={hostDisplayName}
-            localStream={localStream}
-            remoteStreams={remoteStreams}
-            speakingParticipants={speakingParticipants}
-            isMicMuted={isMicMuted}
-            isCameraOff={isCameraOff}
-            participants={participants}
-            currentUserId={currentUserId}
-            onJoinCall={handleJoinCall}
-            onLeaveCall={handleLeaveCall}
-            onStartCall={handleStartCall}
-            onEndCall={handleEndCall}
-            onToggleMic={toggleMic}
-            onToggleCamera={toggleCamera}
-          />
+          {/* Production-Ready 5-Person WebRTC Mesh Audio Call */}
+          <div className="mt-3">
+            <AudioCallBar
+              isCallActive={audioCall.isCallActive}
+              isInCall={audioCall.isInCall}
+              isConnecting={audioCall.isConnecting}
+              isMicMuted={audioCall.isMicMuted}
+              callError={audioCall.callError}
+              isHost={isHost}
+              participants={audioCall.participants}
+              speakingParticipants={audioCall.speakingParticipants}
+              onStartCall={audioCall.startCall}
+              onJoinCall={audioCall.joinCall}
+              onLeaveCall={audioCall.leaveCall}
+              onEndCall={audioCall.endCall}
+              onToggleMic={audioCall.toggleMute}
+              onRetry={audioCall.retryConnections}
+              onClearError={audioCall.clearError}
+            />
+          </div>
 
           {/* Refined Video Information Layout */}
           <div className="mt-4 pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

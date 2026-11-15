@@ -556,6 +556,11 @@ router.post('/:id/call', async (req: Request, res: Response) => {
         return;
       }
       if (!participants.includes(decoded.userId)) {
+        // Enforce maximum 5 participants per audio call
+        if (participants.length >= 5) {
+          res.status(403).json({ error: 'Call is full (maximum 5 participants)' });
+          return;
+        }
         participants.push(decoded.userId);
         await query('UPDATE rooms SET call_participants = $1 WHERE id = $2', [JSON.stringify(participants), id]);
       }

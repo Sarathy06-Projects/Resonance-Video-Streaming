@@ -29,6 +29,8 @@ export class RoomCoordinator {
   public queue: QueueItem[] = [];
   public isCallActive: boolean = false;
   public callParticipants: Set<string> = new Set();
+  public audioCallActive: boolean = false;
+  public audioCallParticipants: Map<string, { id: string; name: string; isMuted: boolean; joinedAt: number }> = new Map();
   private sequence: number = 0;
   public lastActiveAt: number = Date.now();
   private closeTimer: NodeJS.Timeout | null = null;
@@ -178,6 +180,36 @@ export class RoomCoordinator {
           sequence: this.getNextSequence(),
           sentAt: Date.now(),
           payload: { reason: 'All participants left the call' },
+        });
+      }
+    }
+
+    // Remove from active 5-person audio mesh call if joined
+    if (this.audioCallParticipants.has(participantId)) {
+      this.audioCallParticipants.delete(participantId);
+      this.broadcast({
+        id: nanoid(),
+        roomId: this.roomId,
+        type: 'audio.participant.left',
+        senderId: 'server',
+        sequence: this.getNextSequence(),
+        sentAt: Date.now(),
+        payload: {
+          participantId,
+          callParticipants: Array.from(this.audioCallParticipants.values()),
+        },
+      });
+
+      if (this.audioCallActive && this.audioCallParticipants.size === 0) {
+        this.audioCallActive = false;
+        this.broadcast({
+          id: nanoid(),
+          roomId: this.roomId,
+          type: 'audio.call.end',
+          senderId: 'server',
+          sequence: this.getNextSequence(),
+          sentAt: Date.now(),
+          payload: { reason: 'All participants left the audio call' },
         });
       }
     }
@@ -725,6 +757,223 @@ export class RoomCoordinator {
             },
           });
         }
+        break;
+      }
+
+      case 'audio.call.start': {
+        // ONLY room creator / host can start group audio call
+        if (!isHost) {
+          this.sendEventTo(senderId, {
+            id: nanoid(),
+            roomId: this.roomId,
+            type: 'audio.call.state',
+            senderId: 'server',
+            sequence: this.getNextSequence(),
+            sentAt: Date.now(),
+            payload: { error: 'Only the room creator can start an audio call' },
+          });
+          return;
+        }
+
+        this.audioCallActive = true;
+        this.audioCallParticipants.set(senderId, {
+          id: senderId,
+          name: client.participant.name,
+          isMuted: false,
+          joinedAt: Date.now(),
+        });
+
+        this.broadcast({
+          id: nanoid(),
+          roomId: this.roomId,
+          type: 'audio.call.state',
+          senderId,
+          sequence: this.getNextSequence(),
+          sentAt: Date.now(),
+          payload: {
+            isActive: true,
+            audioCallActive: true,
+            hostId: senderId,
+            hostName: client.participant.name,
+            callParticipants: Array.from(this.audioCallParticipants.values()),
+            participants: Array.from(this.audioCallParticipants.values()),
+          },
+        });
+        break;
+      }
+
+      case 'audio.call.join': {
+        if (!this.audioCallActive) {
+          this.sendEventTo(senderId, {
+            id: nanoid(),
+            roomId: this.roomId,
+            type: 'audio.call.state',
+            senderId: 'server',
+            sequence: this.getNextSequence(),
+            sentAt: Date.now(),
+            payload: { error: 'No active audio call to join' },
+          });
+          return;
+        }
+
+        // STRICT 5-PERSON CAP ENFORCEMENT SERVER-SIDE
+        if (this.audioCallParticipants.size >= 5 && !this.audioCallParticipants.has(senderId)) {
+          this.sendEventTo(senderId, {
+            id: nanoid(),
+            roomId: this.roomId,
+            type: 'audio.call.state',
+            senderId: 'server',
+            sequence: this.getNextSequence(),
+            sentAt: Date.now(),
+            payload: { error: 'Call is full (maximum 5 participants)' },
+          });
+          return;
+        }
+
+        this.audioCallParticipants.set(senderId, {
+          id: senderId,
+          name: client.participant.name,
+          isMuted: false,
+          joinedAt: Date.now(),
+        });
+
+        this.broadcast({
+          id: nanoid(),
+          roomId: this.roomId,
+          type: 'audio.participant.joined',
+          senderId,
+          sequence: this.getNextSequence(),
+          sentAt: Date.now(),
+          payload: {
+            participantId: senderId,
+            participant: client.participant,
+            callParticipants: Array.from(this.audioCallParticipants.values()),
+          },
+        });
+        break;
+      }
+
+      case 'audio.call.leave': {
+        this.audioCallParticipants.delete(senderId);
+
+        this.broadcast({
+          id: nanoid(),
+          roomId: this.roomId,
+          type: 'audio.participant.left',
+          senderId,
+          sequence: this.getNextSequence(),
+          sentAt: Date.now(),
+          payload: {
+            participantId: senderId,
+            callParticipants: Array.from(this.audioCallParticipants.values()),
+          },
+        });
+
+        if (this.audioCallParticipants.size === 0) {
+          this.audioCallActive = false;
+          this.broadcast({
+            id: nanoid(),
+            roomId: this.roomId,
+            type: 'audio.call.end',
+            senderId: 'server',
+            sequence: this.getNextSequence(),
+            sentAt: Date.now(),
+            payload: { reason: 'All participants left the audio call' },
+          });
+        }
+        break;
+      }
+
+      case 'audio.call.end': {
+        // ONLY room host can end audio call for everyone
+        if (!isHost) {
+          this.sendEventTo(senderId, {
+            id: nanoid(),
+            roomId: this.roomId,
+            type: 'audio.call.state',
+            senderId: 'server',
+            sequence: this.getNextSequence(),
+            sentAt: Date.now(),
+            payload: { error: 'Only the host can end the audio call for everyone' },
+          });
+          return;
+        }
+
+        this.audioCallActive = false;
+        this.audioCallParticipants.clear();
+
+        this.broadcast({
+          id: nanoid(),
+          roomId: this.roomId,
+          type: 'audio.call.end',
+          senderId,
+          sequence: this.getNextSequence(),
+          sentAt: Date.now(),
+          payload: {
+            hostId: senderId,
+          },
+        });
+        break;
+      }
+
+      case 'audio.offer':
+      case 'audio.answer':
+      case 'audio.ice_candidate': {
+        // Targeted WebRTC signaling between mesh peers
+        const targetId = String(event.payload?.targetParticipantId || '');
+        if (!targetId || targetId === senderId) return;
+
+        // Size check: reject payloads > 64KB
+        const serialized = JSON.stringify(event.payload);
+        if (serialized.length > 65536) return;
+
+        // Verify sender and target are both in active audio call
+        if (!this.audioCallParticipants.has(senderId) || !this.audioCallParticipants.has(targetId)) {
+          return;
+        }
+
+        // STUN Only: Reject any relay candidate
+        if (event.type === 'audio.ice_candidate') {
+          const cand = event.payload?.candidate;
+          if (cand && (cand.type === 'relay' || String(cand.candidate || '').includes('typ relay'))) {
+            return;
+          }
+        }
+
+        this.sendEventTo(targetId, {
+          id: nanoid(),
+          roomId: this.roomId,
+          type: event.type,
+          senderId,
+          sequence: this.getNextSequence(),
+          sentAt: Date.now(),
+          payload: {
+            ...event.payload,
+            senderId,
+            senderName: client.participant.name,
+          },
+        });
+        break;
+      }
+
+      case 'audio.participant.muted':
+      case 'audio.participant.unmuted': {
+        const participant = this.audioCallParticipants.get(senderId);
+        if (participant) {
+          participant.isMuted = event.type === 'audio.participant.muted';
+        }
+        this.broadcast({
+          id: nanoid(),
+          roomId: this.roomId,
+          type: event.type,
+          senderId,
+          sequence: this.getNextSequence(),
+          sentAt: Date.now(),
+          payload: {
+            participantId: senderId,
+            isMuted: event.type === 'audio.participant.muted',
+          },
+        });
         break;
       }
 

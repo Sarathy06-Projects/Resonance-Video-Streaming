@@ -29,6 +29,7 @@ interface UseRoomSocketProps {
   onCallMediaState?: (participantId: string, isMuted: boolean, isCameraOff: boolean) => void;
   onP2PStreamSignal?: (senderId: string, payload: any) => void;
   onP2PStreamState?: (senderId: string, state: any) => void;
+  onAudioEvent?: (event: RoomEvent) => void;
 }
 
 export function useRoomSocket({
@@ -51,6 +52,7 @@ export function useRoomSocket({
   onCallMediaState,
   onP2PStreamSignal,
   onP2PStreamState,
+  onAudioEvent,
 }: UseRoomSocketProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<
@@ -76,6 +78,7 @@ export function useRoomSocket({
     onCallMediaState,
     onP2PStreamSignal,
     onP2PStreamState,
+    onAudioEvent,
   });
 
   useEffect(() => {
@@ -97,6 +100,7 @@ export function useRoomSocket({
       onCallMediaState,
       onP2PStreamSignal,
       onP2PStreamState,
+      onAudioEvent,
     };
   });
 
@@ -508,6 +512,23 @@ export function useRoomSocket({
             callbacksRef.current.onCallMediaState?.(participantId, isMuted, isCameraOff);
             break;
           }
+
+          case 'audio.call.start':
+          case 'audio.call.join':
+          case 'audio.call.leave':
+          case 'audio.call.end':
+          case 'audio.call.state':
+          case 'audio.participant.joined':
+          case 'audio.participant.left':
+          case 'audio.participant.reconnecting':
+          case 'audio.participant.muted':
+          case 'audio.participant.unmuted':
+          case 'audio.offer':
+          case 'audio.answer':
+          case 'audio.ice_candidate': {
+            callbacksRef.current.onAudioEvent?.(roomEvent);
+            break;
+          }
         }
       } catch (err) {
         console.error('[RoomSocket Message Error]', err);
@@ -833,6 +854,13 @@ export function useRoomSocket({
     [send]
   );
 
+  const emitAudioEvent = useCallback(
+    (type: string, payload: any = {}) => {
+      send(type, payload);
+    },
+    [send]
+  );
+
   return {
     connectionStatus,
     metadata,
@@ -869,5 +897,6 @@ export function useRoomSocket({
     emitMediaState,
     emitP2PStreamSignal,
     emitP2PStreamState,
+    emitAudioEvent,
   };
 }
