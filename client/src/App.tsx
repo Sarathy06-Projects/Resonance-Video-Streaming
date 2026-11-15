@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Analytics } from '@vercel/analytics/react';
-import { Navbar } from './components/Navbar';
 import { LandingPage } from './pages/LandingPage';
 import { WatchRoomPage } from './pages/WatchRoomPage';
 import { JoinRoomPage } from './pages/JoinRoomPage';
+import { WatchVideosTogetherPage } from './pages/seo/WatchVideosTogetherPage';
+import { WatchPartyPage } from './pages/seo/WatchPartyPage';
+import { WatchMoviesPage } from './pages/seo/WatchMoviesPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { UpgradeModal } from './components/UpgradeModal';
 
 export function App() {
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [roomToken, setRoomToken] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
@@ -16,6 +20,8 @@ export function App() {
   useEffect(() => {
     const handleLocation = () => {
       const path = window.location.pathname;
+      setCurrentPath(path);
+
       const match = path.match(/\/room\/([a-zA-Z0-9_-]+)/);
       if (match) {
         const roomId = match[1];
@@ -40,6 +46,12 @@ export function App() {
     return () => window.removeEventListener('popstate', handleLocation);
   }, []);
 
+  const navigateTo = (path: string) => {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleRoomCreated = (roomId: string, token: string, hostName: string) => {
     setCurrentRoomId(roomId);
     setRoomToken(token);
@@ -47,6 +59,7 @@ export function App() {
     localStorage.setItem(`together_token_${roomId}`, token);
     localStorage.setItem(`together_username_${roomId}`, hostName);
     window.history.pushState({}, '', `/room/${roomId}`);
+    setCurrentPath(`/room/${roomId}`);
   };
 
   const handleRoomJoined = (roomId: string, token: string, name: string) => {
@@ -56,6 +69,7 @@ export function App() {
     localStorage.setItem(`together_token_${roomId}`, token);
     localStorage.setItem(`together_username_${roomId}`, name);
     window.history.pushState({}, '', `/room/${roomId}`);
+    setCurrentPath(`/room/${roomId}`);
   };
 
   const handleLeaveRoom = () => {
@@ -67,6 +81,82 @@ export function App() {
     setRoomToken(null);
     setUserName('');
     window.history.pushState({}, '', '/');
+    setCurrentPath('/');
+  };
+
+  const handleStartRoomFromSeo = () => {
+    window.history.pushState({}, '', '/');
+    setCurrentPath('/');
+    setTimeout(() => {
+      const el = document.getElementById('room-creator');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  // Render appropriate view based on route
+  const renderContent = () => {
+    // 1. Inside Watch Room
+    if (currentRoomId && roomToken) {
+      return (
+        <WatchRoomPage
+          roomId={currentRoomId}
+          token={roomToken}
+          userName={userName}
+          onLeaveRoom={handleLeaveRoom}
+        />
+      );
+    }
+
+    // 2. Joining Watch Room
+    if (currentRoomId && !roomToken) {
+      return (
+        <JoinRoomPage
+          roomId={currentRoomId}
+          onJoined={handleRoomJoined}
+          onGoHome={handleLeaveRoom}
+        />
+      );
+    }
+
+    // 3. Homepage
+    if (currentPath === '/' || currentPath === '') {
+      return (
+        <main className="flex-1">
+          <LandingPage onRoomCreated={handleRoomCreated} />
+        </main>
+      );
+    }
+
+    // 4. Dedicated SEO Landing Pages
+    if (currentPath === '/watch-videos-together') {
+      return (
+        <WatchVideosTogetherPage
+          onStartRoom={handleStartRoomFromSeo}
+          onGoHome={() => navigateTo('/')}
+        />
+      );
+    }
+
+    if (currentPath === '/watch-party') {
+      return (
+        <WatchPartyPage
+          onStartRoom={handleStartRoomFromSeo}
+          onGoHome={() => navigateTo('/')}
+        />
+      );
+    }
+
+    if (currentPath === '/watch-movies-with-friends') {
+      return (
+        <WatchMoviesPage
+          onStartRoom={handleStartRoomFromSeo}
+          onGoHome={() => navigateTo('/')}
+        />
+      );
+    }
+
+    // 5. 404 Not Found for any legacy or non-existent URLs
+    return <NotFoundPage onGoHome={() => navigateTo('/')} />;
   };
 
   return (
@@ -77,27 +167,7 @@ export function App() {
           : 'min-h-screen'
       } bg-dark-950 text-gray-100 flex flex-col font-sans selection:bg-brand-500 selection:text-white`}
     >
-      {/* If in watch room, we render watch room directly with its integrated top bar */}
-      {currentRoomId && roomToken ? (
-        <WatchRoomPage
-          roomId={currentRoomId}
-          token={roomToken}
-          userName={userName}
-          onLeaveRoom={handleLeaveRoom}
-        />
-      ) : currentRoomId && !roomToken ? (
-        <JoinRoomPage
-          roomId={currentRoomId}
-          onJoined={handleRoomJoined}
-          onGoHome={handleLeaveRoom}
-        />
-      ) : (
-        <main className="flex-1">
-          <LandingPage
-            onRoomCreated={handleRoomCreated}
-          />
-        </main>
-      )}
+      {renderContent()}
 
       {/* Global Upgrade to Premium Modal */}
       <UpgradeModal

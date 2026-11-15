@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Lock, Users, AlertCircle, ArrowRight, ShieldCheck, ChevronLeft } from 'lucide-react';
 import { api } from '../services/api';
+import { trackEvent } from '../services/analytics';
 
 interface JoinRoomPageProps {
   roomId: string;
@@ -19,6 +20,24 @@ export const JoinRoomPage: React.FC<JoinRoomPageProps> = ({
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    // Private Route Indexing Protection (noindex, nofollow)
+    let robotsMeta = document.querySelector('meta[name="robots"]');
+    if (!robotsMeta) {
+      robotsMeta = document.createElement('meta');
+      robotsMeta.setAttribute('name', 'robots');
+      document.head.appendChild(robotsMeta);
+    }
+    const previousContent = robotsMeta.getAttribute('content') || 'index, follow';
+    robotsMeta.setAttribute('content', 'noindex, nofollow');
+    document.title = 'Join Watch Room — Resonance';
+
+    return () => {
+      robotsMeta?.setAttribute('content', previousContent);
+      document.title = 'Resonance — Watch Videos Together Online';
+    };
+  }, []);
 
   useEffect(() => {
     const existingToken = localStorage.getItem(`together_token_${roomId}`);
@@ -63,6 +82,7 @@ export const JoinRoomPage: React.FC<JoinRoomPageProps> = ({
 
       if (res.success && res.token) {
         localStorage.setItem(`together_token_${roomId}`, res.token);
+        trackEvent('participant_joined');
         onJoined(roomId, res.token, name);
       }
     } catch (err: any) {

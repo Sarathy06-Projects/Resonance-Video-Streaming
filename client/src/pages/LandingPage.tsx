@@ -34,6 +34,7 @@ import {
 import { api } from '../services/api';
 import { detectProviderQuick, PROVIDER_META, COMPATIBILITY_META } from '../utils/resolver';
 import { AuroraBackground } from '../components/AuroraBackground';
+import { trackEvent } from '../services/analytics';
 
 interface LandingPageProps {
   onRoomCreated: (roomId: string, token: string, hostName: string) => void;
@@ -169,7 +170,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
 
   // Page Title
   useEffect(() => {
-    document.title = 'Resonance';
+    document.title = 'Resonance — Watch Videos Together Online';
   }, []);
 
   // Scroll detection for navbar
@@ -227,6 +228,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
 
       if (res.success && res.roomId && res.token) {
         localStorage.setItem(`together_token_${res.roomId}`, res.token);
+        trackEvent('room_created', { provider: activeMeta?.name || 'custom' });
         onRoomCreated(res.roomId, res.token, hostName.trim() || 'Alex');
       }
     } catch (err: any) {
@@ -624,7 +626,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 z-10" />
                   <img
                     src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop"
-                    alt="Movie frame"
+                    alt="Synchronized Movie Night cinema view"
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-80"
                   />
                   {/* Floating Apple-style controls bar */}
@@ -663,7 +667,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                 <div className="aspect-[16/10] bg-black relative overflow-hidden flex items-center justify-center border-b border-white/[0.06]">
                   <img
                     src="https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=800&auto=format&fit=crop"
-                    alt="Video discovery"
+                    alt="Online video discovery with friends"
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-80"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 z-10" />
@@ -705,7 +711,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                 <div className="aspect-[16/10] bg-black relative overflow-hidden flex items-center justify-center border-b border-white/[0.06]">
                   <img
                     src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=800&auto=format&fit=crop"
-                    alt="Late night stream"
+                    alt="Late night video stream with friends"
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-80"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 z-10" />
@@ -893,7 +901,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                   <div className="mt-4 rounded-xl aspect-video bg-black relative overflow-hidden flex items-center justify-center border border-white/[0.06]">
                     <img
                       src="https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=80&w=800&auto=format&fit=crop"
-                      alt="Synced scene"
+                      alt="Synchronized playback scene view"
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover opacity-70"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
@@ -1116,12 +1126,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
             <span>Universal Playback Engine</span>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-6 text-white/50">
+          <div className="flex flex-wrap items-center justify-center gap-5 text-white/50">
             {navItems.map((item) => (
               <a key={item.label} href={item.href} className="hover:text-white transition-colors">
                 {item.label}
               </a>
             ))}
+            <a href="/watch-videos-together" className="hover:text-white transition-colors">
+              Playback Guide
+            </a>
+            <a href="/watch-party" className="hover:text-white transition-colors">
+              Watch Party
+            </a>
+            <a href="/watch-movies-with-friends" className="hover:text-white transition-colors">
+              Movie Night
+            </a>
             <a href="#faq" className="hover:text-white transition-colors">
               Privacy
             </a>

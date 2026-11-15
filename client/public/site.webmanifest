@@ -1,0 +1,16 @@
+{
+  "name": "Resonance — Watch Videos Together Online",
+  "short_name": "Resonance",
+  "description": "Your place to spend time together, even when you're apart. Synchronized real-time watch party and calling.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07080a",
+  "theme_color": "#07080a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

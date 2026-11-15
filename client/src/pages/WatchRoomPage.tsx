@@ -113,6 +113,22 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     }
   }, [token]);
 
+  // Private Route Indexing Protection (noindex, nofollow)
+  React.useEffect(() => {
+    let robotsMeta = document.querySelector('meta[name="robots"]');
+    if (!robotsMeta) {
+      robotsMeta = document.createElement('meta');
+      robotsMeta.setAttribute('name', 'robots');
+      document.head.appendChild(robotsMeta);
+    }
+    const previousContent = robotsMeta.getAttribute('content') || 'index, follow';
+    robotsMeta.setAttribute('content', 'noindex, nofollow');
+
+    return () => {
+      robotsMeta?.setAttribute('content', previousContent);
+    };
+  }, []);
+
   // Dynamic Document Title
   React.useEffect(() => {
     if (metadata?.title) {

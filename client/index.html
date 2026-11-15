@@ -2,18 +2,104 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Resonance</title>
-    <link rel="canonical" href="https://www.resonance.org.in/" />
-    <meta name="description" content="Your place to spend time together, even when you're apart. Synchronized real-time watch party and calling." />
-    <meta property="og:title" content="Resonance" />
-    <meta property="og:description" content="Your place to spend time together, even when you're apart. Synchronized real-time watch party and calling." />
+    <title>Resonance — Watch Videos Together Online</title>
+    
+    <!-- Canonical & Crawl Indexing Directives -->
+    <link rel="canonical" href="https://resonance.org.in/" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <meta name="author" content="Resonance" />
+    <meta name="description" content="Watch videos together online with friends, even when you're apart. Create a room, share video links, chat, react and connect through audio and video calls." />
+    <meta name="keywords" content="watch videos together online, watch party online, watch together online, watch videos with friends, watch movies together with friends, synchronized video playback, virtual watch party" />
+    <meta name="theme-color" content="#07080a" />
+
+    <!-- Open Graph (Facebook / Discord / WhatsApp / LinkedIn) -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://www.resonance.org.in/" />
+    <meta property="og:site_name" content="Resonance" />
+    <meta property="og:url" content="https://resonance.org.in/" />
+    <meta property="og:title" content="Resonance — Watch Videos Together Online" />
+    <meta property="og:description" content="Watch videos together online with friends, even when you're apart. Create a room, share video links, chat, react and connect through audio and video calls." />
+    <meta property="og:image" content="https://resonance.org.in/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Resonance — Watch Videos Together Online" />
+
+    <!-- Twitter / X Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://resonance.org.in/" />
+    <meta name="twitter:title" content="Resonance — Watch Videos Together Online" />
+    <meta name="twitter:description" content="Watch videos together online with friends, even when you're apart. Create a room, share video links, chat, react and connect through audio and video calls." />
+    <meta name="twitter:image" content="https://resonance.org.in/og-image.png" />
+
+    <!-- Favicon & PWA Manifest -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- JSON-LD Structured Data (Organization, WebSite, SoftwareApplication) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://resonance.org.in/#organization",
+          "name": "Resonance",
+          "url": "https://resonance.org.in/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://resonance.org.in/favicon.svg"
+          },
+          "description": "An online platform for watching videos together and connecting with friends."
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://resonance.org.in/#website",
+          "url": "https://resonance.org.in/",
+          "name": "Resonance",
+          "description": "Watch videos together online with friends, even when you're apart.",
+          "publisher": {
+            "@id": "https://resonance.org.in/#organization"
+          }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://resonance.org.in/#softwareapplication",
+          "name": "Resonance",
+          "applicationCategory": "MultimediaApplication",
+          "operatingSystem": "Web browser",
+          "url": "https://resonance.org.in/",
+          "description": "A web application that lets people create watch rooms, watch supported video sources together, chat and connect through audio and video calls.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          }
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Accessible Pre-rendered Fallback Content for Crawlers & Initial Load -->
+      <noscript>
+        <header>
+          <h1>Resonance — Your place to spend time together, even when you're apart.</h1>
+          <p>Watch videos together online with friends. Create a room, share video links, chat, react and connect through audio and video calls with synchronized real-time playback.</p>
+        </header>
+        <main>
+          <h2>Supported Video Streaming Sources</h2>
+          <p>YouTube, Direct MP4 / WebM, HLS Adaptive Streaming (.m3u8), Vimeo, Twitch, and Google Drive.</p>
+          <h2>Core Features</h2>
+          <ul>
+            <li>Sub-second frame-locked playback synchronization</li>
+            <li>In-room live group chat and emoji reactions</li>
+            <li>Integrated real-time audio and video calling</li>
+            <li>No browser extensions or software installations required</li>
+          </ul>
+        </main>
+      </noscript>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

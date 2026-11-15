@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Copy, Check, Share2, MessageCircle, Send, Globe } from 'lucide-react';
+import { trackEvent } from '../services/analytics';
 
 interface InviteModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export const InviteModal: React.FC<InviteModalProps> = ({
   const copyToClipboard = () => {
     navigator.clipboard.writeText(roomUrl);
     setCopied(true);
+    trackEvent('invite_link_copied');
     setTimeout(() => setCopied(false), 2000);
   };
 
