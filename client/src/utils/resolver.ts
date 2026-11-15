@@ -123,8 +123,15 @@ export function detectProviderQuick(
     };
   }
 
-  // Direct MP4 / WebM / OGG
-  if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.ogv')) {
+  // Direct MP4 / WebM / OGG / Local Video Files
+  if (
+    lower.endsWith('.mp4') ||
+    lower.endsWith('.webm') ||
+    lower.endsWith('.ogg') ||
+    lower.endsWith('.ogv') ||
+    lower.startsWith('local://') ||
+    lower.startsWith('blob:')
+  ) {
     return {
       provider: 'direct',
       videoId: trimmed,

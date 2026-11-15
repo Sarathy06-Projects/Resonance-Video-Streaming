@@ -30,6 +30,9 @@ import {
   Clock,
   ExternalLink,
   Laptop,
+  Upload,
+  X,
+  Hash,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { detectProviderQuick, PROVIDER_META, COMPATIBILITY_META } from '../utils/resolver';
@@ -38,6 +41,7 @@ import { trackEvent } from '../services/analytics';
 
 interface LandingPageProps {
   onRoomCreated: (roomId: string, token: string, hostName: string) => void;
+  onRoomJoined?: (roomId: string, token: string, guestName: string) => void;
   onOpenPricing?: () => void;
 }
 
@@ -153,10 +157,17 @@ const supportedPlatforms = [
   { name: 'Google Drive', icon: <GoogleDriveLogo className="w-4 h-4 flex-shrink-0" /> },
 ];
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({
+  onRoomCreated,
+  onRoomJoined,
+}) => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const shouldReduceMotion = useReducedMotion();
+
+  // Active Tab: Links | Direct | Join
+  type CardTab = 'links' | 'direct' | 'join';
+  const [activeTab, setActiveTab] = useState<CardTab>('links');
 
   // Link Module State
   const [videoUrl, setVideoUrl] = useState('');
@@ -167,6 +178,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
   const [isValidating, setIsValidating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
+
+  // Direct (Local File) Module State
+  const [localFile, setLocalFile] = useState<File | null>(null);
+  const [localFileUrl, setLocalFileUrl] = useState<string>('');
+  const [directHostName, setDirectHostName] = useState('');
+  const [isDirectPrivate, setIsDirectPrivate] = useState(false);
+  const [directPasscode, setDirectPasscode] = useState('');
+  const [isDirectCreating, setIsDirectCreating] = useState(false);
+  const [directError, setDirectError] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Join Module State
+  const [joinRoomCode, setJoinRoomCode] = useState('');
+  const [joinGuestName, setJoinGuestName] = useState('');
+  const [joinPasscode, setJoinPasscode] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
+  const [joinError, setJoinError] = useState('');
 
   // Page Title
   useEffect(() => {
@@ -235,6 +264,111 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
       setError(err.message || 'Failed to create room. Please try again.');
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLocalFile(file);
+    const blobUrl = URL.createObjectURL(file);
+    setLocalFileUrl(blobUrl);
+    setDirectError('');
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && (file.type.startsWith('video/') || /\.(mp4|webm|ogg|mkv|mov)$/i.test(file.name))) {
+      setLocalFile(file);
+      setLocalFileUrl(URL.createObjectURL(file));
+      setDirectError('');
+    } else if (file) {
+      setDirectError('Please select a valid video file (.mp4, .webm, .mkv, .mov)');
+    }
+  };
+
+  const handleCreateDirectRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!localFile) {
+      setDirectError('Please select a local video file from your device');
+      return;
+    }
+
+    setIsDirectCreating(true);
+    setDirectError('');
+
+    const name = directHostName.trim() || 'Alex';
+
+    try {
+      const res = await api.createRoom({
+        videoUrl: `local://${encodeURIComponent(localFile.name)}`,
+        hostName: name,
+        isPrivate: isDirectPrivate,
+        passcode: isDirectPrivate ? directPasscode.trim() : undefined,
+      });
+
+      if (res.success && res.roomId && res.token) {
+        localStorage.setItem(`together_token_${res.roomId}`, res.token);
+        localStorage.setItem(`together_username_${res.roomId}`, name);
+        if (localFileUrl) {
+          sessionStorage.setItem(`together_local_blob_${res.roomId}`, localFileUrl);
+          sessionStorage.setItem(`together_local_blob_${encodeURIComponent(localFile.name)}`, localFileUrl);
+          sessionStorage.setItem('together_active_local_blob', localFileUrl);
+        }
+        trackEvent('room_created', { provider: 'direct_local' });
+        onRoomCreated(res.roomId, res.token, name);
+      }
+    } catch (err: any) {
+      setDirectError(err.message || 'Failed to create room with local video');
+    } finally {
+      setIsDirectCreating(false);
+    }
+  };
+
+  const handleJoinFromCard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const rawCode = joinRoomCode.trim();
+    if (!rawCode) {
+      setJoinError('Please enter a room code or invite link');
+      return;
+    }
+
+    const match = rawCode.match(/\/room\/([a-zA-Z0-9_-]+)/);
+    const targetRoomId = match ? match[1] : rawCode.replace(/[^a-zA-Z0-9_-]/g, '');
+
+    if (!targetRoomId) {
+      setJoinError('Invalid room code or invite link format');
+      return;
+    }
+
+    setIsJoining(true);
+    setJoinError('');
+
+    const name = joinGuestName.trim() || `Guest_${Math.floor(100 + Math.random() * 900)}`;
+
+    try {
+      const res = await api.joinRoom(targetRoomId, {
+        guestName: name,
+        passcode: joinPasscode.trim() || undefined,
+      });
+
+      if (res.success && res.token) {
+        localStorage.setItem(`together_token_${targetRoomId}`, res.token);
+        localStorage.setItem(`together_username_${targetRoomId}`, name);
+        trackEvent('participant_joined');
+        if (onRoomJoined) {
+          onRoomJoined(targetRoomId, res.token, name);
+        } else {
+          window.history.pushState({}, '', `/room/${targetRoomId}`);
+          window.location.href = `/room/${targetRoomId}`;
+        }
+      }
+    } catch (err: any) {
+      setJoinError(err.message || 'Room not found or passcode is incorrect');
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -421,165 +555,455 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                   className="lg:col-span-5 w-full"
                 >
                   <div className="rounded-2xl border border-white/[0.09] bg-[#0c0e14]/90 p-5 sm:p-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85)] backdrop-blur-2xl text-left">
-                    {/* Header of Card */}
-                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-white/[0.06]">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center text-white">
-                          <Play className="w-3 h-3 fill-white ml-0.2" />
-                        </div>
-                        <span className="text-xs font-semibold text-white tracking-tight">
-                          Create Watch Room
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-2 py-0.5 rounded-full font-medium">
-                        Instant Setup
-                      </span>
+                    {/* Segmented Tab Bar: Links | Direct | Join */}
+                    <div className="grid grid-cols-3 gap-1 p-1 mb-4 rounded-xl bg-white/[0.04] border border-white/[0.08]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('links');
+                          setError('');
+                        }}
+                        className={`py-1.5 px-3 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                          activeTab === 'links'
+                            ? 'bg-white text-black font-semibold shadow-sm'
+                            : 'text-white/60 hover:text-white hover:bg-white/[0.04]'
+                        }`}
+                      >
+                        <Link2 className="w-3.5 h-3.5" />
+                        <span>Links</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('direct');
+                          setDirectError('');
+                        }}
+                        className={`py-1.5 px-3 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                          activeTab === 'direct'
+                            ? 'bg-white text-black font-semibold shadow-sm'
+                            : 'text-white/60 hover:text-white hover:bg-white/[0.04]'
+                        }`}
+                      >
+                        <Film className="w-3.5 h-3.5" />
+                        <span>Direct</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('join');
+                          setJoinError('');
+                        }}
+                        className={`py-1.5 px-3 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none ${
+                          activeTab === 'join'
+                            ? 'bg-white text-black font-semibold shadow-sm'
+                            : 'text-white/60 hover:text-white hover:bg-white/[0.04]'
+                        }`}
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Join</span>
+                      </button>
                     </div>
 
-                    <form onSubmit={handleCreateRoom} className="space-y-3.5">
-                      {/* 1. Video URL Input with Auto-Detected Provider Pill */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <label className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
-                            Video Link
-                          </label>
-                          {activeMeta && (
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-400/20 text-indigo-300">
-                              {activeMeta.name} Detected
-                            </span>
-                          )}
+                    {/* TAB 1: LINKS */}
+                    {activeTab === 'links' && (
+                      <form onSubmit={handleCreateRoom} className="space-y-3.5">
+                        {/* 1. Video URL Input with Auto-Detected Provider Pill */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
+                              Video Link
+                            </label>
+                            {activeMeta && (
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-400/20 text-indigo-300">
+                                {activeMeta.name} Detected
+                              </span>
+                            )}
+                          </div>
+                          <div className="relative flex items-center">
+                            <input
+                              type="text"
+                              value={videoUrl}
+                              onChange={(e) => setVideoUrl(e.target.value)}
+                              placeholder="Paste YouTube, MP4, HLS, Vimeo, Google Drive..."
+                              className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2.5 text-xs text-white placeholder-white/30 outline-none pr-9 transition-colors"
+                            />
+                            <Link2 className="w-3.5 h-3.5 text-white/30 absolute right-3 pointer-events-none" />
+                          </div>
                         </div>
-                        <div className="relative flex items-center">
+
+                        {/* Live Video Preview Card */}
+                        {previewInfo && (
+                          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center gap-3">
+                            <img
+                              src={previewInfo.thumbnailUrl}
+                              alt={previewInfo.title}
+                              className="w-14 h-9 object-cover rounded-lg bg-black flex-shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium text-white truncate">
+                                {previewInfo.title}
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-white/40">
+                                <span className="truncate">{previewInfo.authorName || 'Video Verified'}</span>
+                                <span>•</span>
+                                <span className="text-emerald-400 flex items-center gap-0.5 flex-shrink-0">
+                                  <CheckCircle2 className="w-2.5 h-2.5" /> Synced
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 2. Display Name Input */}
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-1.5">
+                            Your Name
+                          </label>
                           <input
                             type="text"
-                            value={videoUrl}
-                            onChange={(e) => setVideoUrl(e.target.value)}
-                            placeholder="Paste YouTube, MP4, HLS, Vimeo, Google Drive..."
-                            className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2.5 text-xs text-white placeholder-white/30 outline-none pr-9 transition-colors"
+                            value={hostName}
+                            onChange={(e) => setHostName(e.target.value)}
+                            placeholder="Alex (Host)"
+                            maxLength={30}
+                            className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2 text-xs text-white placeholder-white/30 outline-none transition-colors"
                           />
-                          <Link2 className="w-3.5 h-3.5 text-white/30 absolute right-3 pointer-events-none" />
                         </div>
-                      </div>
 
-                      {/* Live Video Preview Card */}
-                      {previewInfo && (
-                        <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center gap-3">
-                          <img
-                            src={previewInfo.thumbnailUrl}
-                            alt={previewInfo.title}
-                            className="w-14 h-9 object-cover rounded-lg bg-black flex-shrink-0"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-white truncate">
-                              {previewInfo.title}
-                            </p>
-                            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-white/40">
-                              <span className="truncate">{previewInfo.authorName || 'Video Verified'}</span>
-                              <span>•</span>
-                              <span className="text-emerald-400 flex items-center gap-0.5 flex-shrink-0">
-                                <CheckCircle2 className="w-2.5 h-2.5" /> Synced
-                              </span>
+                        {/* 3. Password Toggle Switch */}
+                        <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div
+                              className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-colors ${
+                                isPrivate
+                                  ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
+                                  : 'bg-white/[0.04] text-white/40 border border-white/[0.06]'
+                              }`}
+                            >
+                              <Lock className="w-3 h-3" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-white/90">Require room password</p>
+                              <p className="text-[10px] text-white/40 truncate">
+                                {isPrivate ? 'Only users with passcode can enter' : 'Open to anyone with link'}
+                              </p>
                             </div>
                           </div>
-                        </div>
-                      )}
 
-                      {/* 2. Display Name Input */}
-                      <div>
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-1.5">
-                          Your Name
-                        </label>
-                        <input
-                          type="text"
-                          value={hostName}
-                          onChange={(e) => setHostName(e.target.value)}
-                          placeholder="Alex (Host)"
-                          maxLength={30}
-                          className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2 text-xs text-white placeholder-white/30 outline-none transition-colors"
-                        />
-                      </div>
-
-                      {/* 3. Password Toggle Switch */}
-                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div
-                            className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-colors ${
-                              isPrivate
-                                ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
-                                : 'bg-white/[0.04] text-white/40 border border-white/[0.06]'
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isPrivate}
+                            aria-label="Require room password"
+                            onClick={() => {
+                              setIsPrivate(!isPrivate);
+                              if (isPrivate) setPasscode('');
+                            }}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              isPrivate ? 'bg-white' : 'bg-white/15 hover:bg-white/20'
                             }`}
                           >
-                            <Lock className="w-3 h-3" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium text-white/90">Require room password</p>
-                            <p className="text-[10px] text-white/40 truncate">
-                              {isPrivate ? 'Only users with passcode can enter' : 'Open to anyone with link'}
-                            </p>
-                          </div>
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full shadow-md ring-0 transition duration-200 ease-in-out ${
+                                isPrivate ? 'translate-x-4 bg-black' : 'translate-x-0 bg-white/70'
+                              }`}
+                            />
+                          </button>
                         </div>
 
-                        {/* Toggle Button */}
+                        {/* Passcode Input Field (Revealed when toggle is active) */}
+                        <AnimatePresence>
+                          {isPrivate && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.2, ease: 'easeOut' }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pt-0.5">
+                                <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-1.5">
+                                  Room Passcode
+                                </label>
+                                <input
+                                  type="text"
+                                  value={passcode}
+                                  onChange={(e) => setPasscode(e.target.value)}
+                                  placeholder="Enter passcode..."
+                                  autoFocus
+                                  className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2 text-xs text-white placeholder-white/30 outline-none transition-colors"
+                                />
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {error && <p className="text-[11px] text-rose-400">{error}</p>}
+
+                        {/* Primary Launch Action */}
                         <button
-                          type="button"
-                          role="switch"
-                          aria-checked={isPrivate}
-                          aria-label="Require room password"
-                          onClick={() => {
-                            setIsPrivate(!isPrivate);
-                            if (isPrivate) setPasscode('');
-                          }}
-                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            isPrivate ? 'bg-white' : 'bg-white/15 hover:bg-white/20'
-                          }`}
+                          type="submit"
+                          disabled={isCreating || isValidating}
+                          className="w-full py-3 rounded-xl bg-white hover:bg-white/90 text-black font-semibold text-xs tracking-tight transition-all hover:scale-[1.008] active:scale-[0.99] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg cursor-pointer mt-1"
                         >
-                          <span
-                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full shadow-md ring-0 transition duration-200 ease-in-out ${
-                              isPrivate ? 'translate-x-4 bg-black' : 'translate-x-0 bg-white/70'
-                            }`}
-                          />
+                          <Play className="w-3.5 h-3.5 fill-black" />
+                          <span>{isCreating ? 'Creating Watch Room...' : 'Start a room with someone'}</span>
                         </button>
-                      </div>
+                      </form>
+                    )}
 
-                      {/* Passcode Input Field (Revealed when toggle is active) */}
-                      <AnimatePresence>
-                        {isPrivate && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.2, ease: 'easeOut' }}
-                            className="overflow-hidden"
-                          >
-                            <div className="pt-0.5">
-                              <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-1.5">
-                                Room Passcode
-                              </label>
-                              <input
-                                type="text"
-                                value={passcode}
-                                onChange={(e) => setPasscode(e.target.value)}
-                                placeholder="Enter passcode..."
-                                autoFocus
-                                className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2 text-xs text-white placeholder-white/30 outline-none transition-colors"
-                              />
+                    {/* TAB 2: DIRECT (LOCAL VIDEO) */}
+                    {activeTab === 'direct' && (
+                      <form onSubmit={handleCreateDirectRoom} className="space-y-3.5">
+                        {/* Hidden native file input */}
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="video/*,.mp4,.webm,.ogg,.mkv,.mov"
+                          onChange={handleFileSelect}
+                          className="hidden"
+                        />
+
+                        {/* Drag & Drop / File Selector Box */}
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-1.5">
+                            Local Video File
+                          </label>
+                          {!localFile ? (
+                            <div
+                              onClick={() => fileInputRef.current?.click()}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                setIsDragging(true);
+                              }}
+                              onDragLeave={() => setIsDragging(false)}
+                              onDrop={handleDrop}
+                              className={`border border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
+                                isDragging
+                                  ? 'border-indigo-400 bg-indigo-500/10'
+                                  : 'border-white/15 hover:border-white/30 bg-white/[0.02] hover:bg-white/[0.05]'
+                              }`}
+                            >
+                              <div className="w-9 h-9 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center mx-auto mb-2 text-white/80 transition-transform group-hover:scale-105">
+                                <Upload className="w-4 h-4" />
+                              </div>
+                              <p className="text-xs font-medium text-white mb-0.5">
+                                Select video from local
+                              </p>
+                              <p className="text-[10px] text-white/40">
+                                MP4, WebM, MKV, or MOV from your device
+                              </p>
                             </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                          ) : (
+                            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center justify-center flex-shrink-0">
+                                  <Film className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-medium text-white truncate max-w-[190px] sm:max-w-[230px]">
+                                    {localFile.name}
+                                  </p>
+                                  <p className="text-[10px] text-emerald-400 flex items-center gap-1">
+                                    <CheckCircle2 className="w-2.5 h-2.5" />
+                                    <span>{(localFile.size / (1024 * 1024)).toFixed(1)} MB • Ready to stream</span>
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => fileInputRef.current?.click()}
+                                  className="text-[11px] text-white/60 hover:text-white px-2 py-1 rounded bg-white/[0.06] hover:bg-white/[0.1] transition-colors"
+                                >
+                                  Change
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setLocalFile(null);
+                                    setLocalFileUrl('');
+                                  }}
+                                  aria-label="Remove video file"
+                                  className="text-white/40 hover:text-white p-1 rounded hover:bg-white/10 transition-colors"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
 
-                      {error && <p className="text-[11px] text-rose-400">{error}</p>}
+                        {/* Display Name Input */}
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-1.5">
+                            Your Name
+                          </label>
+                          <input
+                            type="text"
+                            value={directHostName}
+                            onChange={(e) => setDirectHostName(e.target.value)}
+                            placeholder="Alex (Host)"
+                            maxLength={30}
+                            className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2 text-xs text-white placeholder-white/30 outline-none transition-colors"
+                          />
+                        </div>
 
-                      {/* Primary Launch Action */}
-                      <button
-                        type="submit"
-                        disabled={isCreating || isValidating}
-                        className="w-full py-3 rounded-xl bg-white hover:bg-white/90 text-black font-semibold text-xs tracking-tight transition-all hover:scale-[1.008] active:scale-[0.99] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg cursor-pointer mt-1"
-                      >
-                        <Play className="w-3.5 h-3.5 fill-black" />
-                        <span>{isCreating ? 'Creating Watch Room...' : 'Start a room with someone'}</span>
-                      </button>
-                    </form>
+                        {/* Password Toggle Switch */}
+                        <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div
+                              className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-colors ${
+                                isDirectPrivate
+                                  ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
+                                  : 'bg-white/[0.04] text-white/40 border border-white/[0.06]'
+                              }`}
+                            >
+                              <Lock className="w-3 h-3" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-white/90">Require room password</p>
+                              <p className="text-[10px] text-white/40 truncate">
+                                {isDirectPrivate ? 'Only users with passcode can enter' : 'Open to anyone with link'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isDirectPrivate}
+                            aria-label="Require room password"
+                            onClick={() => {
+                              setIsDirectPrivate(!isDirectPrivate);
+                              if (isDirectPrivate) setDirectPasscode('');
+                            }}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              isDirectPrivate ? 'bg-white' : 'bg-white/15 hover:bg-white/20'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full shadow-md ring-0 transition duration-200 ease-in-out ${
+                                isDirectPrivate ? 'translate-x-4 bg-black' : 'translate-x-0 bg-white/70'
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {/* Passcode Input Field */}
+                        <AnimatePresence>
+                          {isDirectPrivate && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.2, ease: 'easeOut' }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pt-0.5">
+                                <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-1.5">
+                                  Room Passcode
+                                </label>
+                                <input
+                                  type="text"
+                                  value={directPasscode}
+                                  onChange={(e) => setDirectPasscode(e.target.value)}
+                                  placeholder="Enter passcode..."
+                                  autoFocus
+                                  className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2 text-xs text-white placeholder-white/30 outline-none transition-colors"
+                                />
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {directError && <p className="text-[11px] text-rose-400">{directError}</p>}
+
+                        {/* Primary Action Button */}
+                        <button
+                          type="submit"
+                          disabled={!localFile || isDirectCreating}
+                          className="w-full py-3 rounded-xl bg-white hover:bg-white/90 text-black font-semibold text-xs tracking-tight transition-all hover:scale-[1.008] active:scale-[0.99] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg cursor-pointer mt-1"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-black" />
+                          <span>{isDirectCreating ? 'Creating Room...' : 'Start room with local video'}</span>
+                        </button>
+                      </form>
+                    )}
+
+                    {/* TAB 3: JOIN */}
+                    {activeTab === 'join' && (
+                      <form onSubmit={handleJoinFromCard} className="space-y-3.5">
+                        {/* 1. Room Code / Link Input */}
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-1.5">
+                            Room Code or Link
+                          </label>
+                          <div className="relative flex items-center">
+                            <input
+                              type="text"
+                              value={joinRoomCode}
+                              onChange={(e) => {
+                                setJoinRoomCode(e.target.value);
+                                setJoinError('');
+                              }}
+                              placeholder="e.g. 5nn-m67 or paste invite link..."
+                              className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2.5 text-xs text-white placeholder-white/30 outline-none pr-9 transition-colors font-mono"
+                            />
+                            <Hash className="w-3.5 h-3.5 text-white/30 absolute right-3 pointer-events-none" />
+                          </div>
+                        </div>
+
+                        {/* 2. Display Name Input */}
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-1.5">
+                            Your Name
+                          </label>
+                          <input
+                            type="text"
+                            value={joinGuestName}
+                            onChange={(e) => setJoinGuestName(e.target.value)}
+                            placeholder="Alex (Guest)"
+                            maxLength={30}
+                            className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2 text-xs text-white placeholder-white/30 outline-none transition-colors"
+                          />
+                        </div>
+
+                        {/* 3. Passcode Input */}
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-1.5">
+                            Passcode (if required)
+                          </label>
+                          <div className="relative flex items-center">
+                            <input
+                              type="password"
+                              value={joinPasscode}
+                              onChange={(e) => setJoinPasscode(e.target.value)}
+                              placeholder="Leave blank if room is public..."
+                              className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2 text-xs text-white placeholder-white/30 outline-none pr-9 transition-colors"
+                            />
+                            <Lock className="w-3.5 h-3.5 text-white/30 absolute right-3 pointer-events-none" />
+                          </div>
+                        </div>
+
+                        {joinError && <p className="text-[11px] text-rose-400">{joinError}</p>}
+
+                        {/* Primary Action Button */}
+                        <button
+                          type="submit"
+                          disabled={!joinRoomCode.trim() || isJoining}
+                          className="w-full py-3 rounded-xl bg-white hover:bg-white/90 text-black font-semibold text-xs tracking-tight transition-all hover:scale-[1.008] active:scale-[0.99] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg cursor-pointer mt-1"
+                        >
+                          {isJoining ? (
+                            <div className="w-3.5 h-3.5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                          ) : (
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          )}
+                          <span>{isJoining ? 'Joining Room...' : 'Join Room'}</span>
+                        </button>
+                      </form>
+                    )}
 
                     {/* Supported Streaming Sources Row at bottom of card */}
                     <div className="pt-4 mt-4 border-t border-white/[0.07]">

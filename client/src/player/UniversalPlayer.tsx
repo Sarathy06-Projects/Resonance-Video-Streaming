@@ -72,7 +72,24 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
   const activeVideoId = detected.videoId;
   const activeCompatibility = detected.compatibility;
   const activePlaybackMode = detected.playbackMode;
+  const localBlobUrl = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    if (videoUrl?.startsWith('blob:')) return videoUrl;
+    if (activeVideoId?.startsWith('blob:')) return activeVideoId;
+    if (videoUrl?.startsWith('local://') || activeVideoId?.startsWith('local://')) {
+      const fileName = (videoUrl || activeVideoId).replace(/^local:\/\//, '');
+      return (
+        sessionStorage.getItem(`together_local_blob_${fileName}`) ||
+        localStorage.getItem(`together_local_blob_${fileName}`) ||
+        sessionStorage.getItem('together_active_local_blob') ||
+        ''
+      );
+    }
+    return '';
+  }, [videoUrl, activeVideoId]);
+
   const activeMediaUrl =
+    localBlobUrl ||
     videoUrl ||
     (activeProvider === 'direct' ||
     activeProvider === 'hls' ||

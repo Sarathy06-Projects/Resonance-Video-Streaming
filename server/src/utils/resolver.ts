@@ -117,6 +117,34 @@ export async function resolveMediaUrl(rawUrl: string): Promise<ResolvedMediaInfo
     return resolveYouTube(trimmed, `https://www.youtube.com/watch?v=${trimmed}`);
   }
 
+  // Direct Local Media File
+  if (trimmed.startsWith('local://') || trimmed.startsWith('blob:')) {
+    const rawFileName = trimmed.replace(/^local:\/\//, '').replace(/^blob:[^/]+\//, '');
+    const cleanTitle = decodeURIComponent(rawFileName) || 'Local Video File';
+    return {
+      videoId: trimmed,
+      url: trimmed,
+      title: cleanTitle,
+      authorName: 'Local Video',
+      thumbnailUrl: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=480&auto=format&fit=crop',
+      provider: 'direct',
+      format: 'mp4',
+      capabilities: {
+        canPlay: true,
+        canPause: true,
+        canSeek: true,
+        hasDuration: true,
+        canMute: true,
+        hasVolume: true,
+        canSetRate: true,
+      },
+      supported: true,
+      compatibility: 'fully_syncable',
+      playbackMode: 'player',
+      explanation: 'Direct local video playback with frame-locked synchronization.',
+    };
+  }
+
   let parsed: URL;
   try {
     parsed = new URL(trimmed);

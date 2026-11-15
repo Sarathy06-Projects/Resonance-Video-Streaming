@@ -124,7 +124,10 @@ export function App() {
     if (currentPath === '/' || currentPath === '') {
       return (
         <main className="flex-1">
-          <LandingPage onRoomCreated={handleRoomCreated} />
+          <LandingPage
+            onRoomCreated={handleRoomCreated}
+            onRoomJoined={handleRoomJoined}
+          />
         </main>
       );
     }
