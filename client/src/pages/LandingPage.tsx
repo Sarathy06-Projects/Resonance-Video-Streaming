@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { detectProviderQuick, PROVIDER_META, COMPATIBILITY_META } from '../utils/resolver';
+import { AuroraBackground } from '../components/AuroraBackground';
 
 interface LandingPageProps {
   onRoomCreated: (roomId: string, token: string, hostName: string) => void;
@@ -345,10 +346,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
 
       <main id="top" className="relative z-10">
         {/* ========================================================= */}
-        {/* HERO SECTION                                              */}
+        {/* HERO SECTION WITH SHADCN AURORA BACKGROUND                */}
         {/* ========================================================= */}
-        <section className="px-4 pt-12 pb-20 sm:px-6 lg:px-8 max-w-5xl mx-auto text-center">
-          {/* Eyebrow Micro-Badge */}
+        <section className="relative overflow-hidden border-b border-white/[0.06]">
+          <AuroraBackground className="pt-12 pb-20 sm:pt-16 sm:pb-24">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+              {/* Eyebrow Micro-Badge */}
           <motion.div
             initial={shouldReduceMotion ? undefined : { opacity: 0, y: 14 }}
             animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -550,7 +553,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
               ))}
             </div>
           </motion.div>
-        </section>
+        </div>
+      </AuroraBackground>
+    </section>
 
         {/* ========================================================= */}
         {/* 03. PRODUCT SHOWCASE (Being apart doesn't mean missing out) */}

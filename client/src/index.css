@@ -35,6 +35,20 @@ body {
   height: 6px;
 }
 
+/* Shadcn Aurora Background Animation */
+@keyframes aurora {
+  from {
+    background-position: 50% 50%, 50% 50%;
+  }
+  to {
+    background-position: 350% 50%, 350% 50%;
+  }
+}
+
+.animate-aurora {
+  animation: aurora 60s linear infinite;
+}
+
 ::-webkit-scrollbar-track {
   background: #0f0f13;
 }
