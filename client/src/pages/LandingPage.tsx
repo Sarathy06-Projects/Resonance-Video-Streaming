@@ -79,13 +79,76 @@ const faqs = [
   },
 ] as const;
 
+function YouTubeLogo({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="17" y="3.5" rx="4.5" fill="#FF0000" />
+      <polygon points="10,8 16,12 10,16" fill="white" />
+    </svg>
+  );
+}
+
+function VideoFileLogo({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none">
+      <rect x="2" y="3" width="20" height="18" rx="4" fill="#0EA5E9" />
+      <polygon points="10,8 16,12 10,16" fill="white" />
+      <rect x="4.5" y="5" width="2" height="2" rx="0.5" fill="white" fillOpacity="0.75" />
+      <rect x="4.5" y="17" width="2" height="2" rx="0.5" fill="white" fillOpacity="0.75" />
+      <rect x="17.5" y="5" width="2" height="2" rx="0.5" fill="white" fillOpacity="0.75" />
+      <rect x="17.5" y="17" width="2" height="2" rx="0.5" fill="white" fillOpacity="0.75" />
+    </svg>
+  );
+}
+
+function HlsLogo({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="5" fill="#10B981" fillOpacity="0.2" />
+      <circle cx="12" cy="12" r="2.5" fill="#10B981" />
+      <path d="M8.5 8.5a5 5 0 0 0 0 7m7-7a5 5 0 0 1 0 7" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M5.5 5.5a9.2 9.2 0 0 0 0 13m13-13a9.2 9.2 0 0 1 0 13" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function VimeoLogo({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="#1AB7EA">
+      <path d="M23.977 6.416c-.105 2.338-1.739 5.543-4.894 9.609-3.268 4.24-6.026 6.36-8.29 6.36-1.409 0-2.578-1.299-3.516-3.899-.624-2.3-1.248-4.597-1.872-6.897-.694-2.332-1.442-3.498-2.247-3.498-.174 0-.78.364-1.819 1.092L0 7.408c1.178-1.04 2.334-2.078 3.468-3.118 1.562-1.386 2.709-2.115 3.44-2.184 1.838-.173 2.973 1.084 3.406 3.774.451 2.805.765 4.545.938 5.22.52 2.633 1.093 3.949 1.718 3.949.486 0 1.214-.694 2.185-2.083.971-1.388 1.492-2.446 1.561-3.176.139-1.214-.381-1.822-1.561-1.822-.555 0-1.127.121-1.717.364 1.144-3.743 3.33-5.548 6.557-5.413 2.429.07 3.593 1.637 3.488 4.5z" />
+    </svg>
+  );
+}
+
+function TwitchLogo({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="#9146FF">
+      <path d="M2.149 0L.537 4.119v16.143h5.373v3.738h3.761l3.762-3.738h4.835L23.463 15.2V0H2.149zm19.164 14.134l-3.224 3.224h-5.373l-3.224 3.224v-3.224H4.836V2.149h16.477v11.985z"/>
+      <path d="M17.552 5.91h-2.149v6.448h2.149V5.91zm-5.373 0h-2.149v6.448h2.149V5.91z"/>
+    </svg>
+  );
+}
+
+function GoogleDriveLogo({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 87.3 78" fill="none">
+      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066DA"/>
+      <path d="M43.65 25 29.9 1.2c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44A9.06 9.06 0 0 0 0 53h27.5z" fill="#00AC47"/>
+      <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l6.1 10.5z" fill="#EA4335"/>
+      <path d="M43.65 25 57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832D"/>
+      <path d="m59.8 53-13.75-23.8-13.75 23.8h30.2c1.6 0 3.15-.45 4.5-1.2-.6-.35-1.15-.8-1.6-1.35-.45-.55-.85-1.15-1.15-1.85z" fill="#2684FC"/>
+      <path d="M73.55 76.8H27.5L41.25 53h44.85c0 1.55-.4 3.1-1.2 4.5z" fill="#FFBA00"/>
+    </svg>
+  );
+}
+
 const supportedPlatforms = [
-  { name: 'YouTube', type: 'Official IFrame' },
-  { name: 'Direct MP4 / WebM', type: 'HTML5 Video' },
-  { name: 'HLS (.m3u8)', type: 'Adaptive Stream' },
-  { name: 'Vimeo', type: 'Player SDK' },
-  { name: 'Twitch', type: 'Live Embed' },
-  { name: 'Google Drive', type: 'Direct Preview' },
+  { name: 'YouTube', icon: <YouTubeLogo className="w-4 h-4 flex-shrink-0" /> },
+  { name: 'Direct MP4 / WebM', icon: <VideoFileLogo className="w-4 h-4 flex-shrink-0" /> },
+  { name: 'HLS (.m3u8)', icon: <HlsLogo className="w-4 h-4 flex-shrink-0" /> },
+  { name: 'Vimeo', icon: <VimeoLogo className="w-4 h-4 flex-shrink-0" /> },
+  { name: 'Twitch', icon: <TwitchLogo className="w-4 h-4 flex-shrink-0" /> },
+  { name: 'Google Drive', icon: <GoogleDriveLogo className="w-4 h-4 flex-shrink-0" /> },
 ];
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
@@ -488,13 +551,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
               )}
             </div>
 
-            {/* Supported Platforms Micro-ticker */}
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[11px] text-white/40">
+            {/* Supported Platforms with Brand Logos */}
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 text-xs">
               {supportedPlatforms.map((p) => (
-                <span key={p.name} className="flex items-center gap-1.5">
-                  <span className="w-1 h-1 rounded-full bg-white/20" />
-                  <span>{p.name}</span>
-                </span>
+                <div
+                  key={p.name}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.07] hover:border-white/[0.14] transition-all shadow-sm select-none"
+                >
+                  {p.icon}
+                  <span className="font-medium text-white/75 text-[11px] sm:text-xs tracking-tight">
+                    {p.name}
+                  </span>
+                </div>
               ))}
             </div>
           </motion.div>
