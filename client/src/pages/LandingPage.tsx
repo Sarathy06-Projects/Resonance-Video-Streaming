@@ -250,106 +250,108 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[450px] bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(99,102,241,0.12),transparent_70%)] opacity-80" />
       </div>
 
-      {/* Top Header Navigation */}
-      <header
-        className={`sticky top-0 z-50 transition-all duration-300 ${
-          scrolled
-            ? 'border-b border-white/[0.06] bg-[#07080a]/85 backdrop-blur-xl'
-            : 'bg-transparent'
-        }`}
-      >
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
+      {/* Top Header Navigation — Apple Floating Island */}
+      <header className="fixed top-3.5 sm:top-5 inset-x-0 z-50 flex justify-center px-4 pointer-events-none">
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="pointer-events-auto w-full max-w-fit md:max-w-3xl rounded-full border border-white/[0.14] bg-[#0c0e14]/80 backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.65),inset_0_1px_1px_rgba(255,255,255,0.18)] px-3.5 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between gap-4 sm:gap-7 transition-all duration-200"
+        >
           {/* Brand Mark */}
           <a
             href="#top"
-            className="flex items-center gap-2.5 text-[15px] font-medium tracking-tight text-white group"
+            className="flex items-center gap-2.5 text-[13px] sm:text-sm font-semibold tracking-tight text-white group select-none pl-1"
           >
-            <div className="w-6 h-6 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center text-white shadow-sm group-hover:bg-white/15 transition-all">
-              <Play className="w-3 h-3 fill-white ml-0.5" />
+            <div className="w-6 h-6 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white shadow-sm group-hover:bg-white/20 transition-all">
+              <Play className="w-2.5 h-2.5 fill-white ml-0.5" />
             </div>
-            <span className="font-semibold tracking-[-0.03em]">resonance</span>
+            <span className="tracking-[-0.03em]">resonance</span>
           </a>
 
-          {/* Nav Links */}
-          <nav className="hidden md:flex items-center gap-7 text-xs font-medium text-white/60">
+          {/* Desktop Nav Links */}
+          <nav className="hidden md:flex items-center gap-1 text-xs font-medium text-white/60">
             {navItems.map((item) => (
               <a
                 key={item.label}
                 href={item.href}
-                className="hover:text-white transition-colors"
+                className="px-3 py-1.5 rounded-full hover:text-white hover:bg-white/[0.06] transition-all"
               >
                 {item.label}
               </a>
             ))}
           </nav>
 
-          {/* Action Button */}
-          <div className="hidden md:flex items-center gap-3">
+          {/* Action Button & Mobile Toggle */}
+          <div className="flex items-center gap-2">
             <button
               onClick={scrollToCreator}
-              className="text-xs font-medium bg-white text-black hover:bg-white/90 px-3.5 py-1.5 rounded-full transition-all hover:scale-[1.02] shadow-sm flex items-center gap-1.5"
+              className="text-xs font-semibold bg-white text-black hover:bg-white/90 px-3.5 sm:px-4 py-1.5 rounded-full transition-all hover:scale-[1.02] active:scale-[0.98] shadow-[0_2px_8px_rgba(255,255,255,0.2)] flex items-center gap-1.5 cursor-pointer"
             >
               <span>Start room</span>
               <ArrowRight className="w-3 h-3" />
             </button>
-          </div>
 
-          {/* Mobile Menu Toggle */}
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-1.5 rounded-lg text-white/70 hover:text-white md:hidden"
-            aria-label="Toggle Navigation"
-          >
-            <div className="w-4 h-3 flex flex-col justify-between">
-              <span className="w-full h-0.5 bg-current rounded" />
-              <span className="w-full h-0.5 bg-current rounded" />
-              <span className="w-full h-0.5 bg-current rounded" />
-            </div>
-          </button>
-        </div>
-
-        {/* Mobile Dropdown Menu */}
-        <AnimatePresence>
-          {mobileMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="border-b border-white/[0.06] bg-[#07080a]/95 backdrop-blur-2xl px-6 py-4 md:hidden overflow-hidden"
+            {/* Mobile Menu Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-1.5 rounded-full text-white/70 hover:text-white hover:bg-white/10 md:hidden transition-colors"
+              aria-label="Toggle Navigation"
             >
-              <div className="flex flex-col gap-3 text-sm text-white/70">
-                {navItems.map((item) => (
-                  <a
-                    key={item.label}
-                    href={item.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="py-1.5 hover:text-white"
-                  >
-                    {item.label}
-                  </a>
-                ))}
+              <div className="w-4 h-3 flex flex-col justify-between items-center">
+                <span className={`w-3.5 h-0.5 bg-current rounded transition-transform ${mobileMenuOpen ? 'rotate-45 translate-y-1.25' : ''}`} />
+                <span className={`w-3.5 h-0.5 bg-current rounded transition-opacity ${mobileMenuOpen ? 'opacity-0' : ''}`} />
+                <span className={`w-3.5 h-0.5 bg-current rounded transition-transform ${mobileMenuOpen ? '-rotate-45 -translate-y-1.25' : ''}`} />
+              </div>
+            </button>
+          </div>
+        </motion.div>
+      </header>
+
+      {/* Floating Island Mobile Dropdown */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.96 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="fixed top-18 inset-x-4 max-w-sm mx-auto z-50 md:hidden rounded-2xl border border-white/[0.12] bg-[#0c0e14]/95 backdrop-blur-2xl p-4 shadow-[0_20px_45px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.15)] overflow-hidden"
+          >
+            <div className="flex flex-col gap-1 text-sm">
+              {navItems.map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-3 py-2 rounded-xl text-white/70 hover:text-white hover:bg-white/[0.06] transition-colors"
+                >
+                  {item.label}
+                </a>
+              ))}
+              <div className="pt-2 mt-1 border-t border-white/[0.08]">
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
                     scrollToCreator();
                   }}
-                  className="mt-2 w-full py-2.5 rounded-xl bg-white text-black font-medium text-xs text-center"
+                  className="w-full py-2.5 rounded-xl bg-white text-black font-semibold text-xs text-center shadow-md cursor-pointer"
                 >
                   Start a room
                 </button>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </header>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <main id="top" className="relative z-10">
         {/* ========================================================= */}
         {/* HERO SECTION WITH SHADCN AURORA BACKGROUND                */}
         {/* ========================================================= */}
         <section className="relative overflow-hidden border-b border-white/[0.06]">
-          <AuroraBackground className="pt-8 pb-16 sm:pt-12 sm:pb-20 lg:py-16 xl:py-20">
+          <AuroraBackground className="pt-20 pb-16 sm:pt-24 sm:pb-20 lg:pt-28 lg:pb-24 xl:pt-32 xl:pb-28">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 xl:gap-14 items-center">
                 {/* Left Column: Narrative, Headline, Trust Pillars & Platform Badges */}
