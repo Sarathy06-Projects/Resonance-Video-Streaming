@@ -339,6 +339,7 @@ router.post('/:id/playback', async (req: Request, res: Response) => {
 
     const playback = {
       videoId: videoId || coordinator?.playbackState.videoId,
+      provider: req.body.provider || coordinator?.playbackState.provider || coordinator?.metadata.videoProvider,
       status: status || 'paused',
       position: typeof position === 'number' ? position : 0,
       updatedAt: typeof updatedAt === 'number' ? updatedAt : Date.now(),

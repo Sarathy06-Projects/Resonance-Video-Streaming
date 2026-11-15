@@ -22,14 +22,24 @@ export const YouTubeAdapter = forwardRef<PlayerAdapter, YouTubeAdapterProps>(
 
     useImperativeHandle(ref, () => ({
       play: async () => {
+        if (!playerRef.current) return;
         try {
-          playerRef.current?.playVideo?.();
-        } catch {
+          playerRef.current.playVideo?.();
+        } catch {}
+
+        // Browser Autoplay Policy Fallback:
+        // If the browser blocks playback with audio, mute and play so video continues in sync
+        setTimeout(() => {
+          if (!playerRef.current) return;
           try {
-            playerRef.current?.mute?.();
-            playerRef.current?.playVideo?.();
+            const state = playerRef.current.getPlayerState?.();
+            // If state is not playing (1) or buffering (3), try playing muted
+            if (state !== 1 && state !== 3) {
+              playerRef.current.mute?.();
+              playerRef.current.playVideo?.();
+            }
           } catch {}
-        }
+        }, 350);
       },
       pause: () => {
         try {

@@ -298,6 +298,8 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
   }, [
     authoritativePlayback?.status,
     authoritativePlayback?.playbackRate,
+    authoritativePlayback?.updatedAt,
+    authoritativePlayback?.position,
     isReady,
     isHost,
     activeVideoId,
@@ -386,23 +388,26 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
     if (!adapterRef.current) return;
     setIsAutoplayMuted(false);
     setIsMuted(false);
-    adapterRef.current.setMuted(false);
-    adapterRef.current.setVolume(80);
+    try {
+      adapterRef.current.setMuted(false);
+      adapterRef.current.setVolume(volume || 80);
+    } catch {}
 
-    if (authoritativePlayback) {
-      const now = Date.now();
-      let expected = authoritativePlayback.position;
-      if (authoritativePlayback.status === 'playing') {
-        const elapsed = (now - authoritativePlayback.updatedAt) / 1000;
-        expected += elapsed * (authoritativePlayback.playbackRate || 1.0);
-      }
-      if (authoritativePlayback.status === 'playing') {
-        adapterRef.current.play();
-      }
-      if (capabilities.canSeek) {
-        adapterRef.current.seekTo(expected);
-      }
+    const now = Date.now();
+    let expected = authoritativePlayback?.position || 0;
+    if (authoritativePlayback?.status === 'playing') {
+      const elapsed = (now - (authoritativePlayback.updatedAt || now)) / 1000;
+      expected += elapsed * (authoritativePlayback.playbackRate || 1.0);
+      adapterRef.current.play();
+    } else if (authoritativePlayback?.status === 'paused') {
+      adapterRef.current.pause();
+    } else {
+      adapterRef.current.play();
     }
+
+    try {
+      adapterRef.current.seekTo(expected);
+    } catch {}
   };
 
   const formatTime = (secs: number) => {

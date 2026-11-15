@@ -547,6 +547,8 @@ export function useRoomSocket({
             position: payload.position,
             updatedAt: Date.now(),
             playbackRate: payload.playbackRate || 1,
+            videoId: payload.videoId || metadata?.videoId || playbackState?.videoId,
+            provider: payload.provider || metadata?.videoProvider || playbackState?.provider,
           }),
         }).catch(() => {});
       } else if (type === 'playback:pause') {
@@ -558,6 +560,8 @@ export function useRoomSocket({
             status: 'paused',
             position: payload.position,
             updatedAt: Date.now(),
+            videoId: payload.videoId || metadata?.videoId || playbackState?.videoId,
+            provider: payload.provider || metadata?.videoProvider || playbackState?.provider,
           }),
         }).catch(() => {});
       } else if (type === 'playback:seek') {
@@ -569,6 +573,8 @@ export function useRoomSocket({
             status: payload.status || 'playing',
             position: payload.position,
             updatedAt: Date.now(),
+            videoId: payload.videoId || metadata?.videoId || playbackState?.videoId,
+            provider: payload.provider || metadata?.videoProvider || playbackState?.provider,
           }),
         }).catch(() => {});
       } else if (type === 'video:change') {
@@ -701,9 +707,33 @@ export function useRoomSocket({
     [roomId, token]
   );
 
-  const emitPlay = useCallback((position: number) => send('playback:play', { position }), [send]);
-  const emitPause = useCallback((position: number) => send('playback:pause', { position }), [send]);
-  const emitSeek = useCallback((position: number) => send('playback:seek', { position }), [send]);
+  const emitPlay = useCallback(
+    (position: number) =>
+      send('playback:play', {
+        position,
+        videoId: metadata?.videoId || playbackState?.videoId,
+        provider: metadata?.videoProvider || playbackState?.provider,
+      }),
+    [send, metadata?.videoId, metadata?.videoProvider, playbackState?.videoId, playbackState?.provider]
+  );
+  const emitPause = useCallback(
+    (position: number) =>
+      send('playback:pause', {
+        position,
+        videoId: metadata?.videoId || playbackState?.videoId,
+        provider: metadata?.videoProvider || playbackState?.provider,
+      }),
+    [send, metadata?.videoId, metadata?.videoProvider, playbackState?.videoId, playbackState?.provider]
+  );
+  const emitSeek = useCallback(
+    (position: number) =>
+      send('playback:seek', {
+        position,
+        videoId: metadata?.videoId || playbackState?.videoId,
+        provider: metadata?.videoProvider || playbackState?.provider,
+      }),
+    [send, metadata?.videoId, metadata?.videoProvider, playbackState?.videoId, playbackState?.provider]
+  );
   const emitRate = useCallback((playbackRate: number) => send('playback:rate', { playbackRate }), [send]);
   const emitVideoChange = useCallback(
     (videoId: string, title?: string, provider?: string) => send('video:change', { videoId, title, provider }),

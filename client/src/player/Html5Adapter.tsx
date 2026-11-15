@@ -168,6 +168,7 @@ export const Html5Adapter = forwardRef<PlayerAdapter, Html5AdapterProps>(
         playsInline
         preload="auto"
         className="w-full h-full object-contain bg-black"
+        onLoadedMetadata={() => callbacks.onReady()}
         onCanPlay={() => callbacks.onReady()}
         onPlay={() => callbacks.onPlay(videoRef.current?.currentTime || 0)}
         onPause={() => callbacks.onPause(videoRef.current?.currentTime || 0)}

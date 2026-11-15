@@ -1036,8 +1036,13 @@ routeBoth('post', '/rooms/:id/playback', async (req: Request, res: Response) => 
       return;
     }
 
+    const rRes = await query('SELECT video_id, video_provider FROM rooms WHERE id = $1', [id]);
+    const currentVideoId = videoId || rRes.rows[0]?.video_id;
+    const currentProvider = req.body.provider || rRes.rows[0]?.video_provider || 'youtube';
+
     const playback = {
-      videoId: videoId || undefined,
+      videoId: currentVideoId,
+      provider: currentProvider,
       status: status || 'paused',
       position: typeof position === 'number' ? position : 0,
       updatedAt: typeof updatedAt === 'number' ? updatedAt : Date.now(),
@@ -1350,11 +1355,15 @@ routeBoth('get', '/rooms/:id/poll', async (req: Request, res: Response) => {
     if (!playback) {
       playback = {
         videoId: room.video_id,
+        provider: room.video_provider || 'youtube',
         status: 'paused',
         position: 0,
         updatedAt: Date.now(),
         playbackRate: 1,
       };
+    } else {
+      if (!playback.videoId) playback.videoId = room.video_id;
+      if (!playback.provider) playback.provider = room.video_provider || 'youtube';
     }
 
     // Active participants in last 30s
