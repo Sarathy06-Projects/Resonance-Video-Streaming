@@ -594,7 +594,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         }`}
                       >
                         <Film className="w-3.5 h-3.5" />
-                        <span>Direct</span>
+                        <span>Direct (Beta)</span>
                       </button>
 
                       <button
@@ -842,6 +842,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                               </div>
                             </div>
                           )}
+                        </div>
+
+                        {/* Direct Beta & Same-Network Requirement Notice */}
+                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0 animate-pulse" />
+                          <p className="text-[11px] text-amber-200/90 leading-relaxed text-left">
+                            <span className="font-semibold text-amber-200">Direct Streaming (Beta):</span> Both participants should be on the <span className="underline decoration-amber-400/50 font-medium text-amber-100">same Wi-Fi or local network</span> for direct peer-to-peer streaming without servers.
+                          </p>
                         </div>
 
                         {/* Display Name Input */}

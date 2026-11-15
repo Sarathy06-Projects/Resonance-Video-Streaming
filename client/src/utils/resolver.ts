@@ -346,10 +346,10 @@ export const PROVIDER_META: Record<
     capabilitiesText: 'Full Native Sync: Play, Pause, Seek, Rate',
   },
   p2p_local: {
-    name: 'P2P Local Video',
+    name: 'Direct P2P (Beta)',
     color: '#6366f1',
     badgeBg: 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400',
-    capabilitiesText: 'Direct WebRTC P2P: Frame-Accurate Zero-Server Sync',
+    capabilitiesText: 'Direct WebRTC P2P (Beta): Same-Network Zero-Server Streaming',
   },
   hls: {
     name: 'HLS Stream (.m3u8)',

@@ -163,7 +163,7 @@ export const ChangeVideoModal: React.FC<ChangeVideoModalProps> = ({
             }`}
           >
             <Radio className="w-3.5 h-3.5" />
-            <span>Share Local Video (P2P)</span>
+            <span>Direct (Beta)</span>
           </button>
         </div>
 
@@ -327,12 +327,12 @@ export const ChangeVideoModal: React.FC<ChangeVideoModalProps> = ({
               )}
             </div>
 
-            {/* Zero Server Cost Architecture Notice */}
-            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-start gap-2.5">
-              <Users className="w-4 h-4 text-indigo-400 mt-0.5 flex-shrink-0" />
-              <div className="text-[11px] text-indigo-200/80 leading-relaxed">
-                <span className="font-semibold text-indigo-200">Zero Media Server Cost: </span>
-                Your video streams directly browser-to-browser to 1 friend via WebRTC. It is never uploaded to any server. Limited to exactly 2 participants.
+            {/* Direct Beta & Same Network Requirement Notice */}
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5">
+              <Users className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="text-[11px] text-amber-200/90 leading-relaxed text-left">
+                <span className="font-semibold text-amber-200">Direct Streaming (Beta): </span>
+                Both participants should be connected to the <span className="underline decoration-amber-400/50 font-medium text-amber-100">same Wi-Fi or local network</span>. Video streams directly peer-to-peer from your browser to 1 friend with zero server cost.
               </div>
             </div>
 

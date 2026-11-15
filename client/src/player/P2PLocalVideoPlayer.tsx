@@ -350,9 +350,9 @@ export const P2PLocalVideoPlayer: React.FC<P2PLocalVideoPlayerProps> = ({
           <div className="w-14 h-14 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 mb-4">
             <Upload className="w-7 h-7" />
           </div>
-          <h3 className="text-base font-semibold text-white mb-2">Share Local Video (Zero Server Cost)</h3>
+          <h3 className="text-base font-semibold text-white mb-2">Share Local Video (Beta)</h3>
           <p className="text-xs text-white/50 max-w-md mb-6 leading-relaxed">
-            Select an MP4 or WebM video file from your computer. The video streams directly from your browser to your friend via encrypted WebRTC with zero server storage.
+            Select an MP4 or WebM video file from your computer. Both participants should be on the <span className="text-white/80 underline decoration-white/20">same Wi-Fi or local network</span> for direct peer-to-peer streaming with zero server storage.
           </p>
           <label className="px-5 py-2.5 rounded-xl bg-white hover:bg-white/90 text-black font-semibold text-xs tracking-tight cursor-pointer shadow-xl transition-all flex items-center gap-2.5">
             <Upload className="w-4 h-4" />
@@ -461,7 +461,7 @@ export const P2PLocalVideoPlayer: React.FC<P2PLocalVideoPlayerProps> = ({
           {connectionState === 'connected' && (
             <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[11px] font-medium flex items-center gap-1.5 backdrop-blur-md">
               <ShieldCheck className="w-3 h-3 text-emerald-400" />
-              <span>Connected (Direct P2P)</span>
+              <span>Connected (Direct P2P Beta)</span>
             </span>
           )}
 
