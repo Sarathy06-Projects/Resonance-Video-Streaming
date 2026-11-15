@@ -169,9 +169,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
 
   // Scroll detection for navbar
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
+    const onScroll = () => setScrolled(window.scrollY > 10);
     onScroll();
-    window.addEventListener('scroll', onScroll);
+    window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
@@ -244,18 +244,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#07080a] text-[#f5f5f7] font-sans selection:bg-indigo-500/30 selection:text-white relative overflow-x-hidden">
+    <div className="min-h-screen bg-[#07080a] text-[#f5f5f7] font-sans selection:bg-indigo-500/30 selection:text-white relative overflow-x-clip">
       {/* Subtle Ambient Top Illumination */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[450px] bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(99,102,241,0.12),transparent_70%)] opacity-80" />
       </div>
 
-      {/* Top Header Navigation */}
+      {/* Top Header Navigation - Fixed Sticky with Frosted Glass on Scroll */}
       <header
-        className={`sticky top-0 z-50 transition-all duration-300 ${
+        className={`fixed top-0 left-0 right-0 w-full z-50 transition-all duration-300 ease-out ${
           scrolled
-            ? 'border-b border-white/[0.06] bg-[#07080a]/90 backdrop-blur-xl'
-            : 'bg-[#07080a]/40 backdrop-blur-md border-b border-white/[0.04]'
+            ? 'bg-[#07080a]/75 backdrop-blur-xl backdrop-saturate-150 border-b border-white/[0.08] shadow-[0_4px_30px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.04)]'
+            : 'bg-transparent border-b border-transparent shadow-none'
         }`}
       >
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -344,7 +344,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
         </AnimatePresence>
       </header>
 
-      <main id="top" className="relative z-10">
+      <main id="top" className="relative z-10 pt-14">
         {/* ========================================================= */}
         {/* HERO SECTION WITH SHADCN AURORA BACKGROUND                */}
         {/* ========================================================= */}
