@@ -85,18 +85,11 @@ export function App() {
           onGoHome={handleLeaveRoom}
         />
       ) : (
-        <>
-          <Navbar
-            onOpenNewRoom={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            onOpenPricing={() => setIsPricingModalOpen(true)}
+        <main className="flex-1">
+          <LandingPage
+            onRoomCreated={handleRoomCreated}
           />
-          <main className="flex-1">
-            <LandingPage
-              onRoomCreated={handleRoomCreated}
-              onOpenPricing={() => setIsPricingModalOpen(true)}
-            />
-          </main>
-        </>
+        </main>
       )}
 
       {/* Global Upgrade to Premium Modal */}
