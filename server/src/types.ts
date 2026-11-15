@@ -132,6 +132,13 @@ export type RoomEvent = {
     | 'audio.participant.muted'
     | 'audio.participant.unmuted'
     | 'audio.call.state'
+    | 'room.host.disconnected'
+    | 'room.host.reconnected'
+    | 'room.termination.pending'
+    | 'room.terminated'
+    | 'room.participant.removed'
+    | 'room:leave'
+    | 'room:terminate'
     | 'p2p_stream:signal'
     | 'p2p_stream:state'
     | 'ping'
@@ -156,7 +163,9 @@ export type RoomMetadata = {
   isLocked: boolean;
   maxParticipants: number;
   theme: string;
-  status: 'active' | 'ended';
+  status: 'active' | 'host_reconnecting' | 'terminating' | 'terminated' | 'ended';
   createdAt: string;
   expiresAt?: string;
+  terminatedAt?: string;
+  terminationReason?: string;
 };

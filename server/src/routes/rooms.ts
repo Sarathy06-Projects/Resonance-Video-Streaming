@@ -143,9 +143,22 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       return;
     }
 
-    const coordinator = await roomManager.getCoordinator(id);
-    if (!coordinator) {
+    // Verify room status in Neon PostgreSQL
+    const roomRes = await query('SELECT host_id, status FROM rooms WHERE id = $1', [id]);
+    if (roomRes.rows.length === 0) {
       res.status(404).json({ error: 'Room not found or has expired' });
+      return;
+    }
+
+    const dbRoom = roomRes.rows[0];
+    if (dbRoom.status === 'terminated') {
+      res.status(410).json({ error: 'This room has been terminated because the host left.' });
+      return;
+    }
+
+    const coordinator = await roomManager.getCoordinator(id);
+    if (!coordinator || coordinator.status === 'terminated') {
+      res.status(410).json({ error: 'This room has been terminated because the host left.' });
       return;
     }
 
@@ -224,6 +237,96 @@ router.post('/:id/join', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[POST /api/rooms/:id/join] Error:', err);
     res.status(500).json({ error: 'Error joining room' });
+  }
+});
+
+// Section 15: Authoritative Room Termination Endpoint
+router.post('/:id/terminate', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, reason } = req.body;
+
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session token' });
+      return;
+    }
+
+    // Authenticate user against immutable owner_user_id in Neon PostgreSQL
+    const roomRes = await query('SELECT host_id, status FROM rooms WHERE id = $1', [id]);
+    if (roomRes.rows.length === 0) {
+      res.status(404).json({ error: 'Room not found' });
+      return;
+    }
+
+    const hostId = roomRes.rows[0].host_id;
+    if (decoded.userId !== hostId && decoded.role !== 'host') {
+      res.status(403).json({ error: 'Only the original room host can terminate the room session' });
+      return;
+    }
+
+    const coordinator = await roomManager.getCoordinator(id);
+    if (coordinator) {
+      await coordinator.terminateRoom(reason || 'The host has ended the room session.');
+    } else {
+      await query(
+        `UPDATE rooms SET status = 'terminated', is_call_active = false, terminated_at = NOW(), termination_reason = $1 WHERE id = $2`,
+        [reason || 'The host has ended the room session.', id]
+      );
+    }
+
+    res.json({ success: true, terminated: true });
+  } catch (err: any) {
+    console.error('[POST /api/rooms/:id/terminate] Error:', err);
+    res.status(500).json({ error: 'Error terminating room session' });
+  }
+});
+
+// Section 15: Participant / Host Voluntary Leave Endpoint
+router.post('/:id/leave', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token } = req.body;
+
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session token' });
+      return;
+    }
+
+    const roomRes = await query('SELECT host_id, status FROM rooms WHERE id = $1', [id]);
+    if (roomRes.rows.length === 0) {
+      res.status(404).json({ error: 'Room not found' });
+      return;
+    }
+
+    const hostId = roomRes.rows[0].host_id;
+    const coordinator = await roomManager.getCoordinator(id);
+
+    // If host leaves voluntarily, terminate room session for everyone!
+    if (decoded.userId === hostId || decoded.role === 'host') {
+      if (coordinator) {
+        await coordinator.terminateRoom('The host has left the room. This session has been ended.');
+      } else {
+        await query(
+          `UPDATE rooms SET status = 'terminated', is_call_active = false, terminated_at = NOW(), termination_reason = $1 WHERE id = $2`,
+          ['The host has left the room. This session has been ended.', id]
+        );
+      }
+      res.json({ success: true, terminated: true });
+      return;
+    }
+
+    // Guest leaves: remove from room_members, room remains active
+    await query('DELETE FROM room_members WHERE room_id = $1 AND user_id = $2', [id, decoded.userId]);
+    if (coordinator) {
+      coordinator.removeClient(decoded.userId);
+    }
+
+    res.json({ success: true, left: true });
+  } catch (err: any) {
+    console.error('[POST /api/rooms/:id/leave] Error:', err);
+    res.status(500).json({ error: 'Error leaving room' });
   }
 });
 
@@ -754,8 +857,15 @@ router.get('/:id/poll', async (req: Request, res: Response) => {
     );
 
     const coordinator = await roomManager.getCoordinator(id);
-    if (!coordinator) {
-      res.status(404).json({ error: 'Room not found or expired' });
+    if (!coordinator || coordinator.status === 'terminated') {
+      res.status(410).json({ error: 'This room has been terminated because the host left.', isTerminated: true });
+      return;
+    }
+
+    // Also check Neon DB room status
+    const roomRes = await query('SELECT status FROM rooms WHERE id = $1', [id]);
+    if (roomRes.rows.length === 0 || roomRes.rows[0].status === 'terminated') {
+      res.status(410).json({ error: 'This room has been terminated because the host left.', isTerminated: true });
       return;
     }
 
@@ -787,6 +897,10 @@ router.get('/:id/poll', async (req: Request, res: Response) => {
     res.json({
       success: true,
       metadata: coordinator.metadata,
+      status: coordinator.status,
+      isHostReconnecting: coordinator.status === 'host_reconnecting',
+      hostReconnectDeadline: coordinator.hostReconnectDeadline,
+      secondsRemaining: coordinator.hostReconnectDeadline ? Math.max(0, Math.ceil((coordinator.hostReconnectDeadline - Date.now()) / 1000)) : 0,
       hostId: coordinator.metadata.hostId,
       playback: coordinator.playbackState,
       participants,
@@ -796,6 +910,8 @@ router.get('/:id/poll', async (req: Request, res: Response) => {
       callMode,
       callParticipants: Array.from(coordinator.callParticipants),
       callHostName: coordinator.metadata.title,
+      audioCallActive: coordinator.audioCallActive,
+      audioCallParticipants: Array.from(coordinator.audioCallParticipants.values()),
       signals,
       serverTime: Date.now(),
     });

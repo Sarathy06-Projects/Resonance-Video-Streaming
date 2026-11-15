@@ -22,6 +22,12 @@ interface ConnectedClient {
 export class RoomCoordinator {
   public roomId: string;
   public metadata: RoomMetadata;
+  public ownerUserId: string; // Section 15: Immutable original room host
+  public status: 'active' | 'host_reconnecting' | 'terminating' | 'terminated' = 'active';
+  public hostReconnectTimer: NodeJS.Timeout | null = null;
+  public hostReconnectDeadline: number | null = null;
+  public static readonly HOST_RECONNECT_GRACE_PERIOD_MS = 30000; // 30 seconds
+
   public playbackState: PlaybackState;
   public participants: Map<string, Participant> = new Map();
   public clients: Map<string, ConnectedClient> = new Map();
@@ -38,6 +44,8 @@ export class RoomCoordinator {
   constructor(metadata: RoomMetadata) {
     this.roomId = metadata.id;
     this.metadata = metadata;
+    this.ownerUserId = metadata.hostId;
+    this.status = (metadata.status as any) || 'active';
     this.playbackState = {
       videoId: metadata.videoId,
       status: 'paused',
@@ -63,9 +71,51 @@ export class RoomCoordinator {
   }
 
   public addClient(ws: WebSocket, participant: Participant) {
+    if (this.status === 'terminated' || this.status === 'terminating') {
+      try {
+        ws.close(4002, 'Room terminated');
+      } catch {}
+      return;
+    }
+
     if (this.closeTimer) {
       clearTimeout(this.closeTimer);
       this.closeTimer = null;
+    }
+
+    const isOriginalHost = participant.id === this.ownerUserId || participant.userId === this.ownerUserId;
+
+    // Section 15: If original host reconnects within the 30s grace period, restore active state
+    if (isOriginalHost) {
+      participant.role = 'host';
+      this.playbackState.hostId = participant.id;
+
+      if (this.hostReconnectTimer) {
+        clearTimeout(this.hostReconnectTimer);
+        this.hostReconnectTimer = null;
+        this.hostReconnectDeadline = null;
+      }
+
+      if (this.status === 'host_reconnecting') {
+        this.status = 'active';
+        this.metadata.status = 'active';
+        query('UPDATE rooms SET status = $1 WHERE id = $2', ['active', this.roomId]).catch(console.error);
+
+        this.broadcast({
+          id: nanoid(),
+          roomId: this.roomId,
+          type: 'room.host.reconnected',
+          senderId: 'server',
+          sequence: this.getNextSequence(),
+          sentAt: Date.now(),
+          payload: {
+            hostId: participant.id,
+            hostName: participant.name,
+          },
+        });
+      }
+    } else {
+      participant.role = 'guest';
     }
 
     this.lastActiveAt = Date.now();
@@ -76,13 +126,6 @@ export class RoomCoordinator {
       lastMessageTime: Date.now(),
       messageCount: 0,
     });
-
-    // Verify role matches authoritative host
-    if (participant.id === this.playbackState.hostId) {
-      participant.role = 'host';
-    } else if (participant.role !== 'host') {
-      participant.role = 'guest';
-    }
 
     // Persist/update member in Neon DB asynchronously
     query(
@@ -103,8 +146,14 @@ export class RoomCoordinator {
       sentAt: Date.now(),
       payload: {
         roomId: this.roomId,
-        metadata: this.metadata,
-        hostId: this.playbackState.hostId,
+        metadata: {
+          ...this.metadata,
+          status: this.status,
+        },
+        status: this.status,
+        hostId: this.ownerUserId,
+        isHostReconnecting: this.status === 'host_reconnecting',
+        hostReconnectDeadline: this.hostReconnectDeadline,
         playback: {
           ...this.playbackState,
           position: currentPosition,
@@ -115,6 +164,8 @@ export class RoomCoordinator {
         queue: this.queue,
         isCallActive: this.isCallActive,
         callParticipants: Array.from(this.callParticipants),
+        audioCallActive: this.audioCallActive,
+        audioCallParticipants: Array.from(this.audioCallParticipants.values()),
       },
     });
 
@@ -133,56 +184,16 @@ export class RoomCoordinator {
   }
 
   public removeClient(participantId: string) {
+    if (this.status === 'terminating' || this.status === 'terminated') {
+      return;
+    }
+
     const client = this.clients.get(participantId);
     if (!client) return;
 
     this.clients.delete(participantId);
     this.participants.delete(participantId);
     this.lastActiveAt = Date.now();
-
-    // Broadcast member:leave
-    this.broadcast({
-      id: nanoid(),
-      roomId: this.roomId,
-      type: 'member:leave',
-      senderId: 'server',
-      sequence: this.getNextSequence(),
-      sentAt: Date.now(),
-      payload: {
-        participantId,
-        name: client.participant.name,
-      },
-    });
-
-    // Remove from active video call if joined
-    if (this.callParticipants.has(participantId)) {
-      this.callParticipants.delete(participantId);
-      this.broadcast({
-        id: nanoid(),
-        roomId: this.roomId,
-        type: 'call:participant_left',
-        senderId: 'server',
-        sequence: this.getNextSequence(),
-        sentAt: Date.now(),
-        payload: {
-          participantId,
-          callParticipants: Array.from(this.callParticipants),
-        },
-      });
-
-      if (this.isCallActive && this.callParticipants.size === 0) {
-        this.isCallActive = false;
-        this.broadcast({
-          id: nanoid(),
-          roomId: this.roomId,
-          type: 'call:ended',
-          senderId: 'server',
-          sequence: this.getNextSequence(),
-          sentAt: Date.now(),
-          payload: { reason: 'All participants left the call' },
-        });
-      }
-    }
 
     // Remove from active 5-person audio mesh call if joined
     if (this.audioCallParticipants.has(participantId)) {
@@ -214,43 +225,124 @@ export class RoomCoordinator {
       }
     }
 
-    // Host departure handling (Section 6.5 & 14.1)
-    if (this.playbackState.hostId === participantId) {
-      const remaining = Array.from(this.participants.values());
-      if (remaining.length > 0) {
-        // Transfer host to the next senior participant
-        const newHost = remaining[0];
-        newHost.role = 'host';
-        this.playbackState.hostId = newHost.id;
+    // Remove from active video call if joined
+    if (this.callParticipants.has(participantId)) {
+      this.callParticipants.delete(participantId);
+      this.broadcast({
+        id: nanoid(),
+        roomId: this.roomId,
+        type: 'call:participant_left',
+        senderId: 'server',
+        sequence: this.getNextSequence(),
+        sentAt: Date.now(),
+        payload: {
+          participantId,
+          callParticipants: Array.from(this.callParticipants),
+        },
+      });
 
-        // Persist new host role in DB
-        query(`UPDATE room_members SET role = 'host' WHERE id = $1`, [newHost.id]).catch(console.error);
-
+      if (this.isCallActive && this.callParticipants.size === 0) {
+        this.isCallActive = false;
         this.broadcast({
           id: nanoid(),
           roomId: this.roomId,
-          type: 'host:transfer',
+          type: 'call:ended',
           senderId: 'server',
           sequence: this.getNextSequence(),
           sentAt: Date.now(),
-          payload: {
-            newHostId: newHost.id,
-            newHostName: newHost.name,
-            reason: 'Previous host disconnected',
-          },
+          payload: { reason: 'All participants left the call' },
         });
       }
     }
 
-    // If room is empty, start grace period
-    if (this.clients.size === 0) {
-      this.closeTimer = setTimeout(() => {
-        this.closeRoom('Room expired after idle grace period');
-      }, 30 * 60 * 1000); // 30 mins grace period as per PRD Section 14.1
+    const isOriginalHost = participantId === this.ownerUserId || this.playbackState.hostId === participantId;
+
+    if (isOriginalHost) {
+      // SECTION 15: HOST DEPARTURE — AUTOMATIC ROOM TERMINATION
+      // Never transfer host or promote participants!
+      this.status = 'host_reconnecting';
+      this.metadata.status = 'host_reconnecting';
+      this.hostReconnectDeadline = Date.now() + RoomCoordinator.HOST_RECONNECT_GRACE_PERIOD_MS;
+
+      // Broadcast room.host.disconnected & room.termination.pending
+      this.broadcast({
+        id: nanoid(),
+        roomId: this.roomId,
+        type: 'room.host.disconnected',
+        senderId: 'server',
+        sequence: this.getNextSequence(),
+        sentAt: Date.now(),
+        payload: {
+          hostId: participantId,
+          gracePeriodSeconds: 30,
+          reconnectDeadline: this.hostReconnectDeadline,
+        },
+      });
+
+      this.broadcast({
+        id: nanoid(),
+        roomId: this.roomId,
+        type: 'room.termination.pending',
+        senderId: 'server',
+        sequence: this.getNextSequence(),
+        sentAt: Date.now(),
+        payload: {
+          deadline: this.hostReconnectDeadline,
+          secondsRemaining: 30,
+        },
+      });
+
+      // Persist host_reconnecting status in Neon DB
+      query('UPDATE rooms SET status = $1 WHERE id = $2', ['host_reconnecting', this.roomId]).catch(console.error);
+
+      // Schedule 30-second server-side grace period timer
+      if (this.hostReconnectTimer) {
+        clearTimeout(this.hostReconnectTimer);
+      }
+      this.hostReconnectTimer = setTimeout(() => {
+        if (this.status === 'host_reconnecting') {
+          this.terminateRoom('The host has disconnected and did not return within the 30-second grace period. This session has been ended.');
+        }
+      }, RoomCoordinator.HOST_RECONNECT_GRACE_PERIOD_MS);
+    } else {
+      // Non-host (guest) departure: Room remains active!
+      this.broadcast({
+        id: nanoid(),
+        roomId: this.roomId,
+        type: 'room.participant.removed',
+        senderId: 'server',
+        sequence: this.getNextSequence(),
+        sentAt: Date.now(),
+        payload: {
+          participantId,
+          name: client.participant.name,
+          reason: 'Participant left the room',
+        },
+      });
+
+      this.broadcast({
+        id: nanoid(),
+        roomId: this.roomId,
+        type: 'member:leave',
+        senderId: 'server',
+        sequence: this.getNextSequence(),
+        sentAt: Date.now(),
+        payload: {
+          participantId,
+          name: client.participant.name,
+        },
+      });
+
+      // If room is completely empty (no clients), schedule idle close
+      if (this.clients.size === 0) {
+        this.closeTimer = setTimeout(() => {
+          this.terminateRoom('Room expired after idle period.');
+        }, 30 * 60 * 1000);
+      }
     }
   }
 
-  public handleEvent(senderId: string, event: RoomEvent) {
+  public async handleEvent(senderId: string, event: RoomEvent): Promise<void> {
     const client = this.clients.get(senderId);
     if (!client) return;
 
@@ -267,9 +359,66 @@ export class RoomCoordinator {
       client.messageCount = 1;
     }
 
-    const isHost = this.playbackState.hostId === senderId || client?.participant?.role === 'host';
+    const isHost = this.playbackState.hostId === senderId || client?.participant?.role === 'host' || this.ownerUserId === senderId;
+
+    // Section 15: During host reconnection grace period, suspend host-authority actions
+    if (this.status === 'host_reconnecting') {
+      if (
+        event.type.startsWith('playback:') ||
+        event.type.startsWith('video:') ||
+        event.type.startsWith('queue:') ||
+        event.type === 'room:lock' ||
+        event.type.startsWith('audio.call.start')
+      ) {
+        return;
+      }
+    }
 
     switch (event.type) {
+      case 'room:terminate': {
+        if (!isHost) {
+          this.sendEventTo(senderId, {
+            id: nanoid(),
+            roomId: this.roomId,
+            type: 'chat:message',
+            senderId: 'server',
+            sequence: this.getNextSequence(),
+            sentAt: Date.now(),
+            payload: {
+              id: nanoid(),
+              roomId: this.roomId,
+              senderId: 'server',
+              senderName: 'System',
+              senderRole: 'host',
+              senderColor: '#ef4444',
+              text: 'Only the room host can terminate the room session.',
+              timestamp: Date.now(),
+            },
+          });
+          return;
+        }
+        await this.terminateRoom(event.payload?.reason || 'The host has ended the room session.');
+        break;
+      }
+
+      case 'room:leave': {
+        if (isHost) {
+          // SECTION 15: If the host leaves voluntarily, the entire room session must be terminated for everyone
+          await this.terminateRoom('The host has left the room. This session has been ended.');
+        } else {
+          this.removeClient(senderId);
+        }
+        break;
+      }
+
+      case 'room.host.disconnected':
+      case 'room.host.reconnected':
+      case 'room.termination.pending':
+      case 'room.terminated':
+      case 'room.participant.removed': {
+        // Drop client attempts to forge system lifecycle events
+        return;
+      }
       case 'ping':
         this.sendEventTo(senderId, {
           id: nanoid(),
@@ -475,38 +624,8 @@ export class RoomCoordinator {
       }
 
       case 'host:transfer': {
-        if (!isHost) return;
-        const targetParticipantId = String(event.payload.targetParticipantId);
-        const target = this.participants.get(targetParticipantId);
-        if (!target) return;
-
-        // Downgrade old host
-        const oldHost = this.participants.get(senderId);
-        if (oldHost) oldHost.role = 'guest';
-
-        // Upgrade new host
-        target.role = 'host';
-        this.playbackState.hostId = target.id;
-
-        // Update DB
-        query(`UPDATE room_members SET role = 'guest' WHERE id = $1`, [senderId]).catch(console.error);
-        query(`UPDATE room_members SET role = 'host' WHERE id = $1`, [target.id]).catch(console.error);
-        query(`UPDATE rooms SET host_id = $1 WHERE id = $2`, [target.id, this.roomId]).catch(console.error);
-
-        this.broadcast({
-          id: nanoid(),
-          roomId: this.roomId,
-          type: 'host:transfer',
-          senderId,
-          sequence: this.getNextSequence(),
-          sentAt: Date.now(),
-          payload: {
-            newHostId: target.id,
-            newHostName: target.name,
-            reason: 'Host transferred control',
-          },
-        });
-        break;
+        // Section 15: No host transfer or participant promotion
+        return;
       }
 
       case 'member:kick': {
@@ -1085,26 +1204,130 @@ export class RoomCoordinator {
     }
   }
 
-  public closeRoom(reason: string) {
-    this.metadata.status = 'ended';
-    query(`UPDATE rooms SET status = 'ended', ended_at = NOW() WHERE id = $1`, [this.roomId]).catch(console.error);
+  /**
+   * Section 15: Authoritative Automatic Room Termination
+   * Idempotently terminates the room session, ends audio/video calls, broadcasts room.terminated,
+   * updates Neon PostgreSQL, disconnects all participant WebSockets, and cleans up memory.
+   */
+  public async terminateRoom(reason: string = 'The host has left the room. This session has been ended.'): Promise<void> {
+    if (this.status === 'terminating' || this.status === 'terminated') {
+      return; // Idempotent guard: concurrent termination calls do nothing
+    }
 
+    this.status = 'terminating';
+    this.metadata.status = 'terminating';
+
+    // Cancel any pending grace period or close timers
+    if (this.hostReconnectTimer) {
+      clearTimeout(this.hostReconnectTimer);
+      this.hostReconnectTimer = null;
+      this.hostReconnectDeadline = null;
+    }
+    if (this.closeTimer) {
+      clearTimeout(this.closeTimer);
+      this.closeTimer = null;
+    }
+
+    const endedAt = Date.now();
+
+    // 1. Mark active 5-person mesh audio call as ended
+    if (this.audioCallActive || this.audioCallParticipants.size > 0) {
+      this.audioCallActive = false;
+      this.audioCallParticipants.clear();
+      this.broadcast({
+        id: nanoid(),
+        roomId: this.roomId,
+        type: 'audio.call.end',
+        senderId: 'server',
+        sequence: this.getNextSequence(),
+        sentAt: endedAt,
+        payload: { reason: 'Room session terminated' },
+      });
+    }
+
+    // 2. Mark legacy video call as ended if active
+    if (this.isCallActive || this.callParticipants.size > 0) {
+      this.isCallActive = false;
+      this.callParticipants.clear();
+      this.broadcast({
+        id: nanoid(),
+        roomId: this.roomId,
+        type: 'call:ended',
+        senderId: 'server',
+        sequence: this.getNextSequence(),
+        sentAt: endedAt,
+        payload: { reason: 'Room session terminated' },
+      });
+    }
+
+    // 3. Broadcast room.terminated to every connected participant
+    this.broadcast({
+      id: nanoid(),
+      roomId: this.roomId,
+      type: 'room.terminated',
+      senderId: 'server',
+      sequence: this.getNextSequence(),
+      sentAt: endedAt,
+      payload: {
+        reason,
+        endedAt,
+      },
+    });
+
+    // Also broadcast room:closed for backward compatibility
     this.broadcast({
       id: nanoid(),
       roomId: this.roomId,
       type: 'room:closed',
       senderId: 'server',
       sequence: this.getNextSequence(),
-      sentAt: Date.now(),
+      sentAt: endedAt,
       payload: { reason },
     });
 
-    for (const client of this.clients.values()) {
-      try {
-        client.ws.close(1000, reason);
-      } catch (e) {}
+    // 4. Authoritatively persist termination in Neon PostgreSQL
+    try {
+      await query(
+        `UPDATE rooms 
+         SET status = 'terminated', 
+             is_call_active = false, 
+             call_participants = '[]'::jsonb,
+             terminated_at = NOW(),
+             termination_reason = $1,
+             expires_at = NOW() 
+         WHERE id = $2`,
+        [reason, this.roomId]
+      );
+      await query('DELETE FROM room_signals WHERE room_id = $1', [this.roomId]).catch(() => {});
+    } catch (dbErr) {
+      console.error('[RoomCoordinator] Error persisting room termination in Neon:', dbErr);
     }
+
+    // 5. Disconnect all participant WebSocket sessions with close code 4002
+    for (const [clientId, client] of this.clients.entries()) {
+      try {
+        if (client.ws && client.ws.readyState === WebSocket.OPEN) {
+          client.ws.close(4002, 'Room terminated');
+        }
+      } catch (wsErr) {
+        // ignore close error
+      }
+    }
+
+    // 6. Complete teardown of in-memory maps
     this.clients.clear();
     this.participants.clear();
+    this.status = 'terminated';
+    this.metadata.status = 'terminated';
+
+    // 7. Remove coordinator from RoomManager
+    try {
+      const { roomManager } = require('./manager');
+      roomManager.removeCoordinator(this.roomId);
+    } catch {}
+  }
+
+  public closeRoom(reason: string) {
+    this.terminateRoom(reason);
   }
 }

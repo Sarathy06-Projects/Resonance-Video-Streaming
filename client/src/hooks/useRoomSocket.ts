@@ -30,6 +30,11 @@ interface UseRoomSocketProps {
   onP2PStreamSignal?: (senderId: string, payload: any) => void;
   onP2PStreamState?: (senderId: string, state: any) => void;
   onAudioEvent?: (event: RoomEvent) => void;
+  onHostDisconnected?: (hostId: string, gracePeriodSeconds: number, reconnectDeadline: number) => void;
+  onHostReconnected?: (hostId: string, hostName: string) => void;
+  onTerminationPending?: (deadline: number, secondsRemaining: number) => void;
+  onRoomTerminated?: (reason: string) => void;
+  onParticipantRemoved?: (participantId: string, reason: string) => void;
 }
 
 export function useRoomSocket({
@@ -53,6 +58,11 @@ export function useRoomSocket({
   onP2PStreamSignal,
   onP2PStreamState,
   onAudioEvent,
+  onHostDisconnected,
+  onHostReconnected,
+  onTerminationPending,
+  onRoomTerminated,
+  onParticipantRemoved,
 }: UseRoomSocketProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<
@@ -79,6 +89,11 @@ export function useRoomSocket({
     onP2PStreamSignal,
     onP2PStreamState,
     onAudioEvent,
+    onHostDisconnected,
+    onHostReconnected,
+    onTerminationPending,
+    onRoomTerminated,
+    onParticipantRemoved,
   });
 
   useEffect(() => {
@@ -101,6 +116,11 @@ export function useRoomSocket({
       onP2PStreamSignal,
       onP2PStreamState,
       onAudioEvent,
+      onHostDisconnected,
+      onHostReconnected,
+      onTerminationPending,
+      onRoomTerminated,
+      onParticipantRemoved,
     };
   });
 
@@ -142,6 +162,15 @@ export function useRoomSocket({
         `/api/rooms/${roomId}/poll?token=${encodeURIComponent(token)}&since=${lastChatTimestampRef.current}`
       );
       if (!res.ok) {
+        if (res.status === 410) {
+          setConnectionStatus('disconnected');
+          callbacksRef.current.onRoomTerminated?.('The host has left the room. This session has been ended.');
+          if (pollTimerRef.current) {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+          }
+          return;
+        }
         consecutivePollFailuresRef.current++;
         if (consecutivePollFailuresRef.current >= 3) {
           setConnectionStatus('reconnecting');
@@ -149,6 +178,18 @@ export function useRoomSocket({
         return;
       }
       const data = await res.json();
+      if (data.isTerminated || data.status === 'terminated') {
+        setConnectionStatus('disconnected');
+        callbacksRef.current.onRoomTerminated?.(data.error || 'The host has left the room. This session has been ended.');
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
+        return;
+      }
+      if (data.isHostReconnecting) {
+        callbacksRef.current.onTerminationPending?.(data.hostReconnectDeadline, data.secondsRemaining);
+      }
       if (!data.success) return;
 
       // Mark status as connected since HTTP sync is actively running
@@ -529,6 +570,37 @@ export function useRoomSocket({
             callbacksRef.current.onAudioEvent?.(roomEvent);
             break;
           }
+
+          case 'room.host.disconnected': {
+            const { hostId, gracePeriodSeconds, reconnectDeadline } = roomEvent.payload;
+            callbacksRef.current.onHostDisconnected?.(hostId, gracePeriodSeconds, reconnectDeadline);
+            break;
+          }
+
+          case 'room.host.reconnected': {
+            const { hostId, hostName } = roomEvent.payload;
+            callbacksRef.current.onHostReconnected?.(hostId, hostName);
+            break;
+          }
+
+          case 'room.termination.pending': {
+            const { deadline, secondsRemaining } = roomEvent.payload;
+            callbacksRef.current.onTerminationPending?.(deadline, secondsRemaining);
+            break;
+          }
+
+          case 'room.terminated': {
+            setConnectionStatus('disconnected');
+            callbacksRef.current.onRoomTerminated?.(roomEvent.payload.reason || 'The host has left the room. This session has been ended.');
+            break;
+          }
+
+          case 'room.participant.removed': {
+            const { participantId, reason } = roomEvent.payload;
+            setParticipants((prev) => prev.filter((p) => p.id !== participantId));
+            callbacksRef.current.onParticipantRemoved?.(participantId, reason);
+            break;
+          }
         }
       } catch (err) {
         console.error('[RoomSocket Message Error]', err);
@@ -539,6 +611,11 @@ export function useRoomSocket({
       if (event.code === 4001) {
         setConnectionStatus('kicked');
         callbacksRef.current.onKicked?.('You have been kicked from this room.');
+        return;
+      }
+      if (event.code === 4002) {
+        setConnectionStatus('disconnected');
+        callbacksRef.current.onRoomTerminated?.('The host has left the room. This session has been ended.');
         return;
       }
       // On connection drop, stay connected via HTTP polling fallback without flashing reconnecting
@@ -861,6 +938,28 @@ export function useRoomSocket({
     [send]
   );
 
+  // Section 15: Room Termination and Leave Emitters
+  const emitTerminateRoom = useCallback(
+    (reason?: string) => {
+      send('room:terminate', { reason });
+      fetch(`/api/rooms/${roomId}/terminate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, reason }),
+      }).catch(() => {});
+    },
+    [roomId, token, send]
+  );
+
+  const emitLeaveRoom = useCallback(() => {
+    send('room:leave', {});
+    fetch(`/api/rooms/${roomId}/leave`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    }).catch(() => {});
+  }, [roomId, token, send]);
+
   return {
     connectionStatus,
     metadata,
@@ -898,5 +997,7 @@ export function useRoomSocket({
     emitP2PStreamSignal,
     emitP2PStreamState,
     emitAudioEvent,
+    emitTerminateRoom,
+    emitLeaveRoom,
   };
 }

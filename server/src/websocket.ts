@@ -37,6 +37,12 @@ export function setupWebSocketServer(server: HttpServer): WebSocketServer {
         return;
       }
 
+      if (coordinator.status === 'terminated') {
+        socket.write('HTTP/1.1 410 Room Terminated\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
       if (coordinator.metadata.isLocked && decoded.role !== 'host') {
         socket.write('HTTP/1.1 403 Room Locked\r\n\r\n');
         socket.destroy();
