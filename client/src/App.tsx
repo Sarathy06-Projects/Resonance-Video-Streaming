@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { Navbar } from './components/Navbar';
 import { LandingPage } from './pages/LandingPage';
 import { WatchRoomPage } from './pages/WatchRoomPage';
@@ -97,6 +98,9 @@ export function App() {
         isOpen={isPricingModalOpen}
         onClose={() => setIsPricingModalOpen(false)}
       />
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
     </div>
   );
 }
