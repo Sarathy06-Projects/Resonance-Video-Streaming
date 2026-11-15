@@ -363,7 +363,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 xl:gap-14 items-center">
                 {/* Left Column: Narrative, Headline, Trust Pillars & Platform Badges */}
-                <div className="lg:col-span-7 text-center lg:text-left space-y-5 sm:space-y-6">
+                <div className="lg:col-span-7 text-left space-y-5 sm:space-y-6">
+                  {/* Eyebrow Micro-Badge */}
+                  <motion.div
+                    initial={shouldReduceMotion ? undefined : { opacity: 0, y: 14 }}
+                    animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-[11px] font-medium text-white/70 tracking-wide"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Universal Playback Engine & Realtime Calling</span>
+                  </motion.div>
+
                   {/* Main Statement Headline */}
                   <motion.h1
                     initial={shouldReduceMotion ? undefined : { opacity: 0, y: 20 }}
@@ -379,13 +390,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                     initial={shouldReduceMotion ? undefined : { opacity: 0, y: 16 }}
                     animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
                     transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.16 }}
-                    className="text-sm sm:text-base text-white/55 max-w-xl mx-auto lg:mx-0 font-normal leading-relaxed"
+                    className="text-sm sm:text-base text-white/55 max-w-xl font-normal leading-relaxed"
                   >
                     From random discoveries to unforgettable movie nights, bring your favorite people together around any video in synchronized real-time.
                   </motion.p>
 
                   {/* Trust Highlights */}
-                  <div className="pt-1 flex flex-wrap items-center justify-center lg:justify-start gap-x-5 gap-y-2 text-xs text-white/50">
+                  <div className="pt-1 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-white/50">
                     <span className="flex items-center gap-1.5">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                       <span>Zero software installs</span>
