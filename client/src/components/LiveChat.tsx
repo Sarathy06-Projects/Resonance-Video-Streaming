@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Send,
   Crown,
-  Smile,
   Volume2,
   VolumeX,
   AlertCircle,
@@ -11,6 +10,7 @@ import {
   Check,
   CheckCheck,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ChatMessage } from '../types';
 
 interface LiveChatProps {
@@ -44,7 +44,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
     scrollToBottom();
   }, [messages.length]);
 
-  // Audio notification chime on incoming messages from others
+  // Subtle audio chime on incoming messages from others
   const playIncomingChime = useCallback(() => {
     if (!soundEnabled) return;
     try {
@@ -54,12 +54,12 @@ export const LiveChat: React.FC<LiveChatProps> = ({
       osc.type = 'sine';
       osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
       osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.12); // A5
-      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.18);
+      gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.16);
       osc.connect(gain);
       gain.connect(audioCtx.destination);
       osc.start();
-      osc.stop(audioCtx.currentTime + 0.18);
+      osc.stop(audioCtx.currentTime + 0.16);
     } catch {}
   }, [soundEnabled]);
 
@@ -93,176 +93,136 @@ export const LiveChat: React.FC<LiveChatProps> = ({
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const quickReactions = ['🔥', '😂', '❤️', '👏', '🎉', '🍿'];
+  const quickReactions = ['❤️', '🔥', '😂', '👏', '🎉', '🍿'];
 
   return (
-    <div className="flex flex-col h-full bg-dark-900 border-l border-dark-700/70">
-      {/* Chat Header */}
-      <div className="h-12 border-b border-dark-700/70 px-4 flex items-center justify-between bg-dark-850/50 select-none">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-sm text-white">Live Chat</span>
-          <span className="text-xs text-gray-400">({messages.length})</span>
-          {/* Connection Status indicator */}
-          <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-dark-700">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                connectionStatus === 'connected'
-                  ? 'bg-emerald-400 animate-pulse'
-                  : connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
-                  ? 'bg-amber-400 animate-ping'
-                  : 'bg-rose-500'
-              }`}
-            />
-            <span className="text-[11px] text-gray-400 font-medium capitalize">
-              {connectionStatus === 'connected' ? 'Live' : connectionStatus}
-            </span>
-          </div>
-        </div>
-        <button
-          onClick={() => setSoundEnabled(!soundEnabled)}
-          className="text-gray-400 hover:text-gray-200 transition-colors p-1"
-          title={soundEnabled ? 'Mute notification sound' : 'Unmute notification sound'}
-        >
-          {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-        </button>
-      </div>
-
+    <div className="flex flex-col h-full bg-[#0a0c10] text-white">
       {/* Messages Feed */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-none">
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center text-gray-500 p-4">
-            <Smile className="w-8 h-8 mb-2 opacity-50 text-brand-400" />
-            <p className="text-xs text-gray-300 font-medium">No messages yet.</p>
-            <p className="text-[11px] text-gray-500 mt-0.5">Say hello to everyone in the room!</p>
+          <div className="h-full flex flex-col items-center justify-center text-center p-6 select-none">
+            <div className="w-9 h-9 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white/40 mb-3">
+              <span className="text-base">💬</span>
+            </div>
+            <p className="text-xs font-medium text-white/80">No messages yet</p>
+            <p className="text-[11px] text-white/40 mt-1 max-w-[180px]">
+              Say hello or react to what everyone is watching.
+            </p>
           </div>
         ) : (
           messages.map((msg) => {
             const isMe = msg.senderId === currentUserId;
+
             return (
-              <div
+              <motion.div
                 key={msg.id}
-                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group`}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.18 }}
+                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
               >
-                <div className="flex items-center gap-1.5 mb-1 px-0.5">
-                  <span
-                    className="w-2 h-2 rounded-full inline-block"
-                    style={{ backgroundColor: msg.senderColor || '#6366f1' }}
-                  />
-                  <span className="text-[11px] font-medium text-gray-300">
-                    {msg.senderName}
-                    {isMe && ' (You)'}
-                  </span>
+                {/* Sender Name & Timestamp */}
+                <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] text-white/40">
+                  <span className="font-medium text-white/70">{msg.senderName}</span>
                   {msg.senderRole === 'host' && (
-                    <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] bg-amber-500/20 text-amber-300 font-medium">
-                      <Crown className="w-2.5 h-2.5" /> Host
+                    <span className="text-amber-400" title="Host">
+                      <Crown className="w-2.5 h-2.5" />
                     </span>
                   )}
-                  <span className="text-[10px] text-gray-500">{formatTimestamp(msg.timestamp)}</span>
+                  <span>•</span>
+                  <span>{formatTimestamp(msg.timestamp)}</span>
                 </div>
 
+                {/* Message Bubble */}
                 <div
-                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed break-words shadow-sm relative ${
+                  className={`max-w-[85%] text-xs px-3.5 py-2 leading-relaxed rounded-2xl break-words transition-all ${
                     isMe
-                      ? msg.status === 'failed'
-                        ? 'bg-rose-950/80 text-rose-200 border border-rose-800 rounded-tr-none'
-                        : msg.status === 'sending'
-                        ? 'bg-brand-700/70 text-gray-200 rounded-tr-none border border-brand-500/50'
-                        : 'bg-brand-600 text-white rounded-tr-none'
-                      : 'bg-dark-800 text-gray-200 border border-dark-700/80 rounded-tl-none'
+                      ? 'bg-white/10 text-white rounded-tr-sm border border-white/[0.08]'
+                      : 'bg-white/[0.04] text-white/90 rounded-tl-sm border border-white/[0.05]'
                   }`}
                 >
-                  {msg.text}
-
-                  {/* Delivery Status Indicator for sender */}
-                  {isMe && (
-                    <div className="flex items-center justify-end gap-1 mt-1 text-[10px] opacity-80">
-                      {msg.status === 'sending' && (
-                        <span className="inline-flex items-center gap-0.5 text-gray-300">
-                          <Clock className="w-2.5 h-2.5 animate-spin" /> Sending...
-                        </span>
-                      )}
-                      {msg.status === 'failed' && (
-                        <span className="inline-flex items-center gap-1 text-rose-300 font-medium">
-                          <AlertCircle className="w-3 h-3 text-rose-400" /> Failed to send
-                          {onRetryMessage && (
-                            <button
-                              onClick={() => onRetryMessage(msg)}
-                              className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-800 hover:bg-rose-700 text-white rounded text-[9px]"
-                              title="Retry sending"
-                            >
-                              <RefreshCw className="w-2.5 h-2.5" /> Retry
-                            </button>
-                          )}
-                        </span>
-                      )}
-                      {(!msg.status || msg.status === 'sent') && (
-                        <span className="inline-flex items-center text-brand-200" title="Sent">
-                          <CheckCheck className="w-3 h-3 text-brand-200" />
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  <p>{msg.text}</p>
                 </div>
-              </div>
+
+                {/* Status indicator for my messages */}
+                {isMe && msg.status && (
+                  <div className="flex items-center gap-1 mt-0.5 px-1 text-[10px] text-white/35">
+                    {msg.status === 'sending' && (
+                      <span className="flex items-center gap-0.5">
+                        <Clock className="w-2.5 h-2.5 animate-spin" /> Sending...
+                      </span>
+                    )}
+                    {msg.status === 'sent' && (
+                      <span className="flex items-center gap-0.5 text-white/40">
+                        <Check className="w-2.5 h-2.5" />
+                      </span>
+                    )}
+                    {msg.status === 'failed' && (
+                      <button
+                        onClick={() => onRetryMessage && onRetryMessage(msg)}
+                        className="text-rose-400 hover:underline flex items-center gap-0.5"
+                      >
+                        <AlertCircle className="w-2.5 h-2.5" /> Retry
+                      </button>
+                    )}
+                  </div>
+                )}
+              </motion.div>
             );
           })
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick Reaction Bar */}
-      <div className="px-3 py-1.5 border-t border-dark-700/50 bg-dark-850/40 flex items-center justify-between">
-        <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
-          React
-        </span>
-        <div className="flex items-center gap-1">
-          {quickReactions.map((emoji) => (
-            <button
-              key={emoji}
-              onClick={() => onSendReaction(emoji, 'quick')}
-              className="hover:scale-125 transition-transform text-sm p-1 rounded hover:bg-dark-700/60 active:scale-95"
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Composer Section */}
+      <div className="p-3 border-t border-white/[0.06] bg-[#0c0e14]">
+        {/* Quick Reactions Bar */}
+        <div className="flex items-center justify-between pb-2 px-1">
+          <div className="flex items-center gap-1.5">
+            {quickReactions.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => onSendReaction(emoji, 'emoji')}
+                className="w-7 h-7 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-sm transition-transform hover:scale-115 active:scale-95"
+                title={`Send ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
 
-      {/* Input Form */}
-      <form onSubmit={handleSubmit} className="p-3 border-t border-dark-700/70 bg-dark-900">
-        <div className="flex items-center gap-2 bg-dark-800 border border-dark-700 rounded-xl px-3 py-1.5 focus-within:border-brand-500 transition-colors">
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className="text-white/30 hover:text-white/70 p-1 rounded transition-colors"
+            title={soundEnabled ? 'Mute notification sound' : 'Unmute notification sound'}
+          >
+            {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+
+        {/* Text Input Form */}
+        <form onSubmit={handleSubmit} className="relative flex items-center">
           <input
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             placeholder="Type a message..."
             maxLength={500}
-            disabled={connectionStatus === 'disconnected' || connectionStatus === 'kicked'}
-            className="flex-1 bg-transparent text-xs text-white placeholder-gray-500 outline-none"
+            className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-white/20 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 outline-none pr-10 transition-colors"
           />
-          {inputText.length > 0 && (
-            <span
-              className={`text-[10px] font-mono ${
-                inputText.length > 450 ? 'text-amber-400 font-bold' : 'text-gray-500'
-              }`}
-            >
-              {inputText.length}/500
-            </span>
-          )}
           <button
             type="submit"
             disabled={!inputText.trim() || isSubmitting}
-            className="p-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-40 text-white transition-opacity flex items-center justify-center cursor-pointer"
-            title="Send Message"
+            className="absolute right-1.5 p-1.5 rounded-lg bg-white text-black hover:bg-white/90 disabled:opacity-20 disabled:hover:bg-white transition-all"
+            title="Send message"
           >
-            {isSubmitting ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Send className="w-3.5 h-3.5" />
-            )}
+            <Send className="w-3.5 h-3.5 ml-0.5" />
           </button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 };
+
+export default LiveChat;

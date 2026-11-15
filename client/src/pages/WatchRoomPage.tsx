@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Share2,
   Settings,
@@ -7,14 +7,16 @@ import {
   Users,
   ListPlus,
   Lock,
-  Radio,
-  LogOut,
-  RotateCw,
-  Film,
-  Eye,
+  ChevronLeft,
   Crown,
   Video,
+  Copy,
+  Check,
+  Film,
+  Radio,
+  RotateCw,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useRoomSocket } from '../hooks/useRoomSocket';
 import { useLiveKitCall, CallMode } from '../hooks/useLiveKitCall';
 import { VideoPlayer } from '../components/VideoPlayer';
@@ -26,6 +28,7 @@ import { UpgradeModal } from '../components/UpgradeModal';
 import { RoomSettingsModal } from '../components/RoomSettingsModal';
 import { ChangeVideoModal } from '../components/ChangeVideoModal';
 import { VideoCallGrid } from '../components/VideoCallGrid';
+import { PROVIDER_META } from '../utils/resolver';
 
 interface WatchRoomPageProps {
   roomId: string;
@@ -45,7 +48,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isChangeVideoOpen, setIsChangeVideoOpen] = useState(false);
-  const [roomTheme, setRoomTheme] = useState('obsidian');
+  const [copiedRoomId, setCopiedRoomId] = useState(false);
 
   const {
     connectionStatus,
@@ -83,7 +86,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     roomId,
     token,
     onKicked: (msg) => {
-      alert(msg || 'You were kicked from this room.');
+      alert(msg || 'You were removed from this room.');
       onLeaveRoom();
     },
     onRoomClosed: (reason) => {
@@ -93,7 +96,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
   });
 
   // Decode session token immediately for instant zero-latency role resolution
-  const session = React.useMemo(() => {
+  const session = useMemo(() => {
     try {
       const base64Url = token.split('.')[1];
       if (!base64Url) return null;
@@ -105,20 +108,26 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
           .join('')
       );
       return JSON.parse(jsonPayload);
-    } catch (e) {
+    } catch {
       return null;
     }
   }, [token]);
 
-  // Determine current user identity
   const me = participants.find((p) => p.id === session?.userId || p.name === userName);
   const currentUserId = session?.userId || (me ? me.id : '');
   const effectiveUserName = userName || session?.name || (me ? me.name : 'Host');
-  const isHost = session?.role === 'host' || (me ? me.role === 'host' : false) || (hostId ? hostId === currentUserId : false);
+  const isHost =
+    session?.role === 'host' ||
+    (me ? me.role === 'host' : false) ||
+    (hostId ? hostId === currentUserId : false);
   const hostParticipant = participants.find((p) => p.role === 'host' || p.id === hostId);
-  const hostDisplayName = hostParticipant ? hostParticipant.name : (session?.role === 'host' ? effectiveUserName : callHostName || 'Host');
+  const hostDisplayName = hostParticipant
+    ? hostParticipant.name
+    : session?.role === 'host'
+    ? effectiveUserName
+    : callHostName || 'Host';
 
-  // Unified LiveKit Calling Hook (First-class Audio & Video Calling)
+  // Unified LiveKit Calling Hook
   const {
     isInCall,
     activeCallMode,
@@ -165,115 +174,109 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     emitLeaveCall();
   };
 
-  const currentVideoId = playbackState?.videoId || metadata?.videoId || 'aqz-KE-bpKQ';
-  const currentProvider = (playbackState?.provider || metadata?.videoProvider || 'youtube') as any;
-
-  const getThemeClass = (theme: string) => {
-    switch (theme) {
-      case 'purple':
-        return 'bg-[#0b0517]';
-      case 'cyberpunk':
-        return 'bg-[#040e14]';
-      case 'emerald':
-        return 'bg-[#04120a]';
-      default:
-        return 'bg-[#08080a]';
-    }
+  const handleCopyRoomId = () => {
+    navigator.clipboard.writeText(roomId);
+    setCopiedRoomId(true);
+    setTimeout(() => setCopiedRoomId(false), 2000);
   };
 
+  const currentVideoId = playbackState?.videoId || metadata?.videoId || 'aqz-KE-bpKQ';
+  const currentProvider = (playbackState?.provider || metadata?.videoProvider || 'youtube') as any;
+  const currentMeta = PROVIDER_META[currentProvider] || PROVIDER_META.youtube;
+
   return (
-    <div className={`min-h-screen ${getThemeClass(roomTheme)} text-white flex flex-col`}>
-      {/* Watch Room Top Bar */}
-      <header className="h-14 border-b border-dark-700/70 bg-dark-900/90 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between z-30">
-        <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
+    <div className="min-h-screen bg-[#07080a] text-[#f5f5f7] flex flex-col selection:bg-white/20 selection:text-white">
+      {/* Top Navigation */}
+      <header className="h-[52px] border-b border-white/[0.06] bg-[#07080a]/90 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between z-30 sticky top-0">
+        {/* Left: Minimal Leave + Title + Room ID */}
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onLeaveRoom}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white px-2.5 py-1 rounded-lg hover:bg-dark-800 transition-colors"
-            title="Leave room"
+            className="flex items-center gap-1 text-xs text-white/50 hover:text-white px-2.5 py-1.5 rounded-full hover:bg-white/[0.06] transition-colors"
+            title="Leave watch party"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Leave</span>
+            <ChevronLeft className="w-4 h-4 -ml-1 text-white/50" />
+            <span className="font-medium">Leave</span>
           </button>
 
-          <div className="h-4 w-px bg-dark-700 hidden sm:block" />
+          <div className="h-3.5 w-px bg-white/[0.08]" />
 
-          <div className="min-w-0">
-            <h1 className="text-xs sm:text-sm font-bold text-white truncate max-w-[200px] sm:max-w-md">
-              {metadata?.title || 'Together Watch Party'}
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-xs sm:text-sm font-medium text-white/90 truncate max-w-[160px] sm:max-w-xs md:max-w-md tracking-tight">
+              {metadata?.title || 'Watch Party'}
             </h1>
-            <div className="flex items-center gap-2 text-[10px] text-gray-400">
-              <span className="flex items-center gap-1 font-mono">
-                Room: <strong className="text-brand-300">{roomId}</strong>
-              </span>
-              {isHost ? (
-                <span className="inline-flex items-center gap-0.5 text-amber-300 font-semibold bg-amber-500/20 px-1.5 py-0.2 rounded border border-amber-500/30">
-                  <Crown className="w-2.5 h-2.5" /> Room Creator
-                </span>
+
+            {/* Subtle Room ID Pill with Click to Copy */}
+            <button
+              onClick={handleCopyRoomId}
+              className="hidden sm:inline-flex items-center gap-1 font-mono text-[11px] text-white/40 hover:text-white/80 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] px-2 py-0.5 rounded-md transition-all"
+              title="Click to copy room ID"
+            >
+              <span>{roomId}</span>
+              {copiedRoomId ? (
+                <Check className="w-2.5 h-2.5 text-emerald-400" />
               ) : (
-                <span className="inline-flex items-center gap-0.5 text-gray-400 bg-dark-800 px-1.5 py-0.2 rounded border border-dark-700">
-                  <Eye className="w-2.5 h-2.5 text-brand-400" /> Viewer
-                </span>
+                <Copy className="w-2.5 h-2.5 text-white/30" />
               )}
-              {isCallActive && (
-                <span className="inline-flex items-center gap-1 text-emerald-400 font-semibold bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.2 rounded animate-pulse">
-                  <Video className="w-2.5 h-2.5" /> Call Live
-                </span>
-              )}
-              {isLocked && (
-                <span className="text-red-400 flex items-center gap-0.5">
-                  <Lock className="w-2.5 h-2.5" /> Locked
-                </span>
-              )}
-              {connectionStatus === 'reconnecting' && (
-                <span className="text-amber-400 flex items-center gap-0.5 animate-pulse">
-                  <RotateCw className="w-2.5 h-2.5 animate-spin" /> Reconnecting
-                </span>
-              )}
-            </div>
+            </button>
+
+            {/* Creator / Viewer Micro-indicator */}
+            {isHost ? (
+              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] uppercase font-semibold tracking-wider text-white/40 bg-white/[0.04] px-1.5 py-0.5 rounded border border-white/[0.06]">
+                <Crown className="w-2.5 h-2.5 text-amber-400" /> Host
+              </span>
+            ) : null}
+
+            {isLocked && (
+              <span className="text-rose-400 text-[10px] flex items-center gap-0.5" title="Room is private">
+                <Lock className="w-2.5 h-2.5" />
+              </span>
+            )}
+
+            {connectionStatus === 'reconnecting' && (
+              <span className="text-amber-400 text-[10px] flex items-center gap-1 animate-pulse">
+                <RotateCw className="w-2.5 h-2.5 animate-spin" /> Reconnecting
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Right Header Controls */}
-        <div className="flex items-center gap-2 sm:gap-2.5">
-          {/* Creator-only "Start Group Call" quick trigger if call is not active yet */}
-          {isHost && !isCallActive && (
-            <button
-              onClick={() => handleStartCall('video')}
-              className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/35 px-2.5 sm:px-3 py-1.5 rounded-lg transition-all hover:scale-[1.02]"
-              title="Start a group video call for the room"
-            >
-              <Video className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Group Call</span>
-            </button>
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2">
+          {/* Active Call Badge if call is live */}
+          {isCallActive && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Call Live</span>
+            </div>
           )}
 
-          {/* Upgrade to Premium Button: Creator Only */}
+          {/* Upgrade Button (Host Only) */}
           {isHost && (
             <button
               onClick={() => setIsUpgradeOpen(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 px-2.5 sm:px-3 py-1.5 rounded-lg transition-all hover:scale-[1.02]"
+              className="hidden sm:flex items-center gap-1.5 text-xs text-white/70 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] px-3 py-1.5 rounded-full transition-colors"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Upgrade Room</span>
-              <span className="sm:hidden">₹199</span>
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Upgrade</span>
             </button>
           )}
 
-          {/* Invite Friends Button: Available to everyone (Creator & Viewers) */}
+          {/* Invite Button: Apple-style High Contrast Pill */}
           <button
             onClick={() => setIsInviteOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-500 px-3 py-1.5 rounded-lg shadow-sm transition-all hover:scale-[1.02]"
+            className="flex items-center gap-1.5 text-xs font-medium text-black bg-white hover:bg-white/90 px-3.5 py-1.5 rounded-full shadow-sm transition-all hover:scale-[1.01]"
           >
-            <Share2 className="w-3.5 h-3.5" />
+            <Share2 className="w-3.5 h-3.5 text-black" />
             <span>Invite</span>
           </button>
 
-          {/* Room Settings: Only Creator can open room settings */}
+          {/* Room Settings (Creator Only) */}
           {isHost && (
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className="p-1.5 text-gray-400 hover:text-white hover:bg-dark-800 rounded-lg transition-colors"
-              title="Room Settings (Creator only)"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.06] transition-colors"
+              title="Room Settings"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -281,12 +284,12 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
         </div>
       </header>
 
-      {/* Main 72% Video / 28% Sidebar Layout (Section 15.2) */}
+      {/* Main Experience: Video Canvas + Sidebar */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Left Video & Call Area (~72%) */}
-        <div className="w-full lg:w-[72%] flex flex-col p-2 sm:p-4 lg:p-6 overflow-y-auto">
-          {/* Main YouTube Video Player */}
-          <div className="w-full aspect-video rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl bg-black border border-dark-800">
+        {/* Left Side: Video Canvas & Controls */}
+        <div className="flex-1 flex flex-col p-3 sm:p-5 lg:p-6 overflow-y-auto">
+          {/* 16:9 Cinematic Video Player Container */}
+          <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black border border-white/[0.06] shadow-2xl relative">
             <VideoPlayer
               videoId={currentVideoId}
               provider={currentProvider}
@@ -307,7 +310,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
             />
           </div>
 
-          {/* Live Group Calling Section: Unified Audio and Video Calling */}
+          {/* Group Calling Section below Video */}
           <VideoCallGrid
             isCallActive={isCallActive}
             callMode={callMode}
@@ -331,102 +334,98 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
             onToggleCamera={toggleCamera}
           />
 
-          {/* Video Metadata & Controls Under Player */}
-          <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-dark-900/60 border border-dark-800">
+          {/* Refined Video Information Layout */}
+          <div className="mt-4 pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-white">
-                {metadata?.title || 'YouTube Video'}
+              <h2 className="text-base sm:text-lg font-medium text-white tracking-tight leading-snug">
+                {metadata?.title || 'Video Stream'}
               </h2>
-              <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
-                <span>Direct Provider Embed</span>
+              <div className="flex items-center gap-2 mt-1 text-xs text-white/40">
+                <span className="font-medium text-white/60">{currentMeta.name}</span>
                 <span>•</span>
-                <span className="flex items-center gap-1 text-emerald-400 font-medium">
-                  <Radio className="w-3 h-3 animate-pulse" /> Live Realtime Room
+                <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Synchronized
                 </span>
                 <span>•</span>
-                <span>{participants.length} Active Viewers</span>
+                <span>{participants.length} {participants.length === 1 ? 'viewer' : 'viewers'}</span>
               </div>
             </div>
 
-            {/* Actions Toolbar */}
+            {/* Quiet Actions */}
             <div className="flex items-center gap-2">
-              {/* Creator-only "Change Video" action */}
-              {isHost ? (
+              {isHost && (
                 <button
                   onClick={() => setIsChangeVideoOpen(true)}
-                  className="flex items-center gap-1.5 text-xs text-brand-300 hover:text-white bg-brand-500/20 hover:bg-brand-500/30 px-3 py-1.5 rounded-lg border border-brand-500/40 transition-colors shadow-sm"
+                  className="flex items-center gap-1.5 text-xs text-white/80 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] px-3.5 py-2 rounded-xl border border-white/[0.08] transition-colors"
                 >
-                  <Film className="w-3.5 h-3.5" />
+                  <Film className="w-3.5 h-3.5 text-white/60" />
                   <span>Change Video</span>
                 </button>
-              ) : (
-                <div className="flex items-center gap-1.5 text-xs text-gray-400 bg-dark-800/80 px-3 py-1.5 rounded-lg border border-dark-700/60">
-                  <Eye className="w-3.5 h-3.5 text-brand-400" />
-                  <span>Watching with Host</span>
-                </div>
               )}
 
-              {/* Share Link: Available to everyone */}
               <button
                 onClick={() => setIsInviteOpen(true)}
-                className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-white bg-dark-800 hover:bg-dark-700 px-3 py-1.5 rounded-lg border border-dark-700 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-white/80 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] px-3.5 py-2 rounded-xl border border-white/[0.08] transition-colors"
               >
-                <Share2 className="w-3.5 h-3.5" />
+                <Share2 className="w-3.5 h-3.5 text-white/60" />
                 <span>Share Link</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Right Sidebar Area (~28%) */}
-        <div className="w-full lg:w-[28%] flex flex-col h-[500px] lg:h-auto border-t lg:border-t-0 border-dark-700/70 bg-dark-900">
-          {/* Tab Navigation */}
-          <div className="flex border-b border-dark-700/70 bg-dark-850/60 text-xs">
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={`flex-1 py-3 font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
-                activeTab === 'chat'
-                  ? 'border-brand-500 text-white bg-dark-800/40'
-                  : 'border-transparent text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>Chat</span>
-              <span className="text-[10px] text-gray-400">({chatMessages.length})</span>
-            </button>
+        {/* Right Side: Integrated Sidebar */}
+        <div className="w-full lg:w-[350px] xl:w-[380px] flex flex-col h-[520px] lg:h-auto border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0a0c10]">
+          {/* Segmented Tab Switcher */}
+          <div className="p-3 border-b border-white/[0.06]">
+            <div className="grid grid-cols-3 bg-white/[0.03] p-1 rounded-xl border border-white/[0.06] text-xs">
+              <button
+                onClick={() => setActiveTab('chat')}
+                className={`py-1.5 px-2 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
+                  activeTab === 'chat'
+                    ? 'bg-white/10 text-white shadow-sm'
+                    : 'text-white/50 hover:text-white/80'
+                }`}
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Chat</span>
+                {chatMessages.length > 0 && (
+                  <span className="text-[10px] text-white/40">({chatMessages.length})</span>
+                )}
+              </button>
 
-            <button
-              onClick={() => setActiveTab('participants')}
-              className={`flex-1 py-3 font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
-                activeTab === 'participants'
-                  ? 'border-brand-500 text-white bg-dark-800/40'
-                  : 'border-transparent text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>People</span>
-              <span className="text-[10px] text-gray-400">
-                ({participants.length}/{metadata?.maxParticipants || 3})
-              </span>
-            </button>
+              <button
+                onClick={() => setActiveTab('participants')}
+                className={`py-1.5 px-2 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
+                  activeTab === 'participants'
+                    ? 'bg-white/10 text-white shadow-sm'
+                    : 'text-white/50 hover:text-white/80'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>People</span>
+                <span className="text-[10px] text-white/40">({participants.length})</span>
+              </button>
 
-            <button
-              onClick={() => setActiveTab('queue')}
-              className={`flex-1 py-3 font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
-                activeTab === 'queue'
-                  ? 'border-brand-500 text-white bg-dark-800/40'
-                  : 'border-transparent text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              <ListPlus className="w-3.5 h-3.5" />
-              <span>Queue</span>
-              {queue.length > 0 && (
-                <span className="w-2 h-2 rounded-full bg-brand-500 inline-block" />
-              )}
-            </button>
+              <button
+                onClick={() => setActiveTab('queue')}
+                className={`py-1.5 px-2 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
+                  activeTab === 'queue'
+                    ? 'bg-white/10 text-white shadow-sm'
+                    : 'text-white/50 hover:text-white/80'
+                }`}
+              >
+                <ListPlus className="w-3.5 h-3.5" />
+                <span>Queue</span>
+                {queue.length > 0 && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-white ml-0.5" />
+                )}
+              </button>
+            </div>
           </div>
 
-          {/* Active Tab Panel */}
+          {/* Active Tab View */}
           <div className="flex-1 overflow-hidden">
             {activeTab === 'chat' && (
               <LiveChat
@@ -445,10 +444,10 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
                 currentUserId={currentUserId}
                 isHost={isHost}
                 maxParticipants={metadata?.maxParticipants || 3}
-                onKickMember={(memberId) => emitKickMember(memberId)}
-                onTransferHost={(memberId) => emitTransferHost(memberId)}
+                onKickMember={(id) => emitKickMember(id)}
+                onTransferHost={(id) => emitTransferHost(id)}
                 onOpenInvite={() => setIsInviteOpen(true)}
-                onOpenUpgrade={isHost ? () => setIsUpgradeOpen(true) : undefined}
+                onOpenUpgrade={() => setIsUpgradeOpen(true)}
               />
             )}
 
@@ -456,8 +455,8 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
               <VideoQueue
                 queue={queue}
                 isHost={isHost}
-                onAddToQueue={(vid, title, thumb) => emitAddToQueue(vid, title, thumb)}
-                onRemoveFromQueue={(itemId) => emitRemoveFromQueue(itemId)}
+                onAddToQueue={(vId, title, thumb) => emitAddToQueue(vId, title, thumb)}
+                onRemoveFromQueue={(id) => emitRemoveFromQueue(id)}
                 onPlayNext={() => emitPlayNextQueue()}
               />
             )}
@@ -471,8 +470,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
         onClose={() => setIsInviteOpen(false)}
         roomId={roomId}
         roomTitle={metadata?.title}
-        isPrivate={metadata?.isPrivate}
-        passcode={metadata?.passcode}
+        isPrivate={isLocked}
       />
 
       <UpgradeModal
@@ -485,19 +483,21 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
       <RoomSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        roomId={roomId}
+        token={token}
         isLocked={isLocked}
+        currentTheme="obsidian"
         onToggleLock={(locked) => emitToggleLock(locked)}
-        currentTheme={roomTheme}
-        onChangeTheme={(th) => setRoomTheme(th)}
-        isHost={isHost}
-        maxParticipants={metadata?.maxParticipants || 3}
+        onSelectTheme={() => {}}
       />
 
       <ChangeVideoModal
         isOpen={isChangeVideoOpen}
         onClose={() => setIsChangeVideoOpen(false)}
-        onChangeVideo={(vid, title, prov) => emitVideoChange(vid, title, prov)}
+        onChangeVideo={(vId, title, prov) => emitVideoChange(vId, title, prov)}
       />
     </div>
   );
 };
+
+export default WatchRoomPage;

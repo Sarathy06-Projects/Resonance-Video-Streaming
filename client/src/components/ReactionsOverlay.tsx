@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Reaction } from '../types';
 
 interface ReactionsOverlayProps {
@@ -9,14 +10,11 @@ interface ReactionsOverlayProps {
 interface FloatingEmoji {
   id: string;
   emoji: string;
-  left: number; // percentage 10% - 90%
+  left: number; // percentage 50% - 90% (stays on right half so it never blocks center video content)
   senderName: string;
 }
 
-export const ReactionsOverlay: React.FC<ReactionsOverlayProps> = ({
-  reactions,
-  onTriggerReaction,
-}) => {
+export const ReactionsOverlay: React.FC<ReactionsOverlayProps> = ({ reactions }) => {
   const [floatingList, setFloatingList] = useState<FloatingEmoji[]>([]);
 
   useEffect(() => {
@@ -25,45 +23,43 @@ export const ReactionsOverlay: React.FC<ReactionsOverlayProps> = ({
     const newEmoji: FloatingEmoji = {
       id: latest.id || Math.random().toString(),
       emoji: latest.emoji,
-      left: 15 + Math.random() * 70, // random position between 15% and 85%
+      left: 60 + Math.random() * 28, // 60% to 88% on the right side
       senderName: latest.senderName,
     };
 
-    setFloatingList((prev) => [...prev.slice(-15), newEmoji]);
+    setFloatingList((prev) => [...prev.slice(-12), newEmoji]);
 
     const timer = setTimeout(() => {
       setFloatingList((prev) => prev.filter((item) => item.id !== newEmoji.id));
-    }, 2500);
+    }, 2800);
 
     return () => clearTimeout(timer);
   }, [reactions]);
 
-  const reactionEmojis = [
-    { emoji: '❤️', type: 'heart', label: 'Love' },
-    { emoji: '🔥', type: 'fire', label: 'Fire' },
-    { emoji: '😂', type: 'laugh', label: 'Laugh' },
-    { emoji: '🎉', type: 'party', label: 'Party' },
-    { emoji: '👏', type: 'clap', label: 'Clap' },
-    { emoji: '🤯', type: 'mindblown', label: 'Mindblown' },
-  ];
-
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden z-20">
-      {/* Animated Floating Emojis */}
-      {floatingList.map((item) => (
-        <div
-          key={item.id}
-          className="absolute bottom-16 animate-float-up flex flex-col items-center pointer-events-none"
-          style={{ left: `${item.left}%` }}
-        >
-          <span className="text-3xl sm:text-4xl filter drop-shadow-lg select-none">
-            {item.emoji}
-          </span>
-          <span className="text-[10px] text-white/80 bg-black/50 px-1.5 py-0.5 rounded-full backdrop-blur-sm mt-1 whitespace-nowrap">
-            {item.senderName}
-          </span>
-        </div>
-      ))}
+      <AnimatePresence>
+        {floatingList.map((item) => (
+          <motion.div
+            key={item.id}
+            initial={{ opacity: 0, scale: 0.6, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: -160 }}
+            exit={{ opacity: 0, scale: 0.8, y: -240 }}
+            transition={{ duration: 2.6, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute bottom-20 flex flex-col items-center pointer-events-none"
+            style={{ left: `${item.left}%` }}
+          >
+            <span className="text-2xl sm:text-3xl select-none filter drop-shadow-md">
+              {item.emoji}
+            </span>
+            {item.senderName && (
+              <span className="text-[10px] text-white/75 bg-black/60 px-2 py-0.5 rounded-full backdrop-blur-md mt-1 whitespace-nowrap border border-white/[0.08] font-medium tracking-tight">
+                {item.senderName}
+              </span>
+            )}
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 };
@@ -72,22 +68,22 @@ export const ReactionBar: React.FC<{
   onTriggerReaction: (emoji: string, type: string) => void;
 }> = ({ onTriggerReaction }) => {
   const reactionEmojis = [
-    { emoji: '❤️', type: 'heart' },
-    { emoji: '🔥', type: 'fire' },
-    { emoji: '😂', type: 'laugh' },
-    { emoji: '🎉', type: 'party' },
-    { emoji: '👏', type: 'clap' },
-    { emoji: '🤯', type: 'mindblown' },
+    { emoji: '❤️', type: 'heart', label: 'Love' },
+    { emoji: '🔥', type: 'fire', label: 'Fire' },
+    { emoji: '😂', type: 'laugh', label: 'Laugh' },
+    { emoji: '🎉', type: 'party', label: 'Party' },
+    { emoji: '👏', type: 'clap', label: 'Clap' },
+    { emoji: '🍿', type: 'popcorn', label: 'Popcorn' },
   ];
 
   return (
-    <div className="flex items-center gap-1 sm:gap-1.5 bg-dark-900/90 border border-dark-700/80 px-2 py-1 rounded-full shadow-lg backdrop-blur-md">
+    <div className="flex items-center gap-1 bg-black/50 hover:bg-black/70 border border-white/[0.08] hover:border-white/[0.14] px-2 py-1 rounded-full backdrop-blur-xl shadow-lg transition-all">
       {reactionEmojis.map((r) => (
         <button
           key={r.type}
           onClick={() => onTriggerReaction(r.emoji, r.type)}
-          className="text-lg hover:scale-130 active:scale-95 transition-transform p-1 rounded-full hover:bg-dark-700/50"
-          title={`Send ${r.type}`}
+          className="text-base sm:text-lg hover:scale-125 active:scale-95 transition-transform p-1 rounded-full hover:bg-white/[0.08]"
+          title={`Send ${r.label}`}
         >
           {r.emoji}
         </button>

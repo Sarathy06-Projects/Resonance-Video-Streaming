@@ -1,5 +1,5 @@
 import React from 'react';
-import { Crown, UserMinus, UserCheck, Share2, Sparkles, Shield } from 'lucide-react';
+import { Crown, UserMinus, UserCheck, Share2, Sparkles } from 'lucide-react';
 import { Participant } from '../types';
 
 interface ParticipantsListProps {
@@ -24,43 +24,41 @@ export const ParticipantsList: React.FC<ParticipantsListProps> = ({
   onOpenUpgrade,
 }) => {
   return (
-    <div className="flex flex-col h-full bg-dark-900 border-l border-dark-700/70 p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-dark-700/70">
+    <div className="flex flex-col h-full bg-[#0a0c10] text-white p-4">
+      {/* Header Info */}
+      <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
         <div>
-          <h3 className="font-semibold text-sm text-white flex items-center gap-2">
-            <span>Participants</span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-dark-800 text-gray-300 border border-dark-700">
-              {participants.length} / {maxParticipants}
-            </span>
-          </h3>
+          <h3 className="text-xs font-medium text-white/90">In this Room</h3>
+          <p className="text-[11px] text-white/40 mt-0.5">
+            {participants.length} of {maxParticipants} active
+          </p>
         </div>
         <button
           onClick={onOpenInvite}
-          className="flex items-center gap-1.5 text-xs text-white bg-brand-600 hover:bg-brand-500 px-2.5 py-1 rounded-lg transition-colors shadow-sm"
+          className="flex items-center gap-1.5 text-xs text-white/90 hover:text-white bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] px-3 py-1.5 rounded-lg transition-colors"
         >
           <Share2 className="w-3 h-3" />
           <span>Invite</span>
         </button>
       </div>
 
-      {/* Capacity Upgrade Notice if near limit */}
+      {/* Capacity upgrade prompt if full */}
       {participants.length >= maxParticipants && onOpenUpgrade && (
-        <div className="my-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
-          <div className="text-[11px] text-amber-200">
-            Room is at capacity ({maxParticipants} max).
-          </div>
+        <div className="my-3 p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between">
+          <span className="text-[11px] text-white/60">
+            Room capacity reached ({maxParticipants})
+          </span>
           <button
             onClick={onOpenUpgrade}
-            className="text-[11px] font-semibold text-amber-300 hover:underline flex items-center gap-1"
+            className="text-[11px] font-medium text-white hover:underline flex items-center gap-1"
           >
-            <Sparkles className="w-3 h-3" /> Upgrade (15 max)
+            <Sparkles className="w-3 h-3" /> Upgrade
           </button>
         </div>
       )}
 
       {/* Participants List */}
-      <div className="flex-1 overflow-y-auto py-3 space-y-2">
+      <div className="flex-1 overflow-y-auto py-3 space-y-1.5 scrollbar-none">
         {participants.map((p) => {
           const isMe = p.id === currentUserId;
           const isParticipantHost = p.role === 'host';
@@ -68,12 +66,12 @@ export const ParticipantsList: React.FC<ParticipantsListProps> = ({
           return (
             <div
               key={p.id}
-              className="flex items-center justify-between p-2.5 rounded-xl bg-dark-850/70 border border-dark-750 hover:border-dark-700 transition-colors"
+              className="group flex items-center justify-between p-2.5 rounded-xl hover:bg-white/[0.03] transition-colors"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                {/* Avatar with initial */}
+                {/* Avatar */}
                 <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white flex-shrink-0 shadow-sm"
+                  className="w-8 h-8 rounded-full flex items-center justify-center font-medium text-xs text-white flex-shrink-0 shadow-sm"
                   style={{ backgroundColor: p.color || '#6366f1' }}
                 >
                   {p.name.charAt(0).toUpperCase()}
@@ -81,37 +79,37 @@ export const ParticipantsList: React.FC<ParticipantsListProps> = ({
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-medium text-white truncate max-w-[110px]">
+                    <span className="text-xs font-medium text-white/90 truncate max-w-[120px]">
                       {p.name}
                     </span>
-                    {isMe && <span className="text-[10px] text-gray-400">(You)</span>}
+                    {isMe && <span className="text-[10px] text-white/40 font-normal">(You)</span>}
                   </div>
-                  <div className="flex items-center gap-1 mt-0.5">
+                  <div className="flex items-center gap-1 text-[10px] text-white/40 mt-0.5">
                     {isParticipantHost ? (
-                      <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-amber-300 bg-amber-500/20 px-1 rounded">
-                        <Crown className="w-2.5 h-2.5" /> Room Host
+                      <span className="flex items-center gap-0.5 text-amber-300">
+                        <Crown className="w-2.5 h-2.5" /> Host
                       </span>
                     ) : (
-                      <span className="text-[10px] text-gray-500">Guest Viewer</span>
+                      <span>Viewer</span>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Host actions on other members */}
+              {/* Host Actions on Members */}
               {isHost && !isMe && (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => onTransferHost(p.id)}
-                    className="p-1.5 text-gray-400 hover:text-amber-300 hover:bg-dark-700 rounded-lg transition-colors"
-                    title="Make Host"
+                    className="p-1.5 rounded-md hover:bg-white/[0.08] text-white/40 hover:text-white transition-colors"
+                    title="Make Room Host"
                   >
                     <UserCheck className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => onKickMember(p.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-dark-700 rounded-lg transition-colors"
-                    title="Remove from room"
+                    className="p-1.5 rounded-md hover:bg-rose-500/20 text-white/40 hover:text-rose-400 transition-colors"
+                    title="Remove from Room"
                   >
                     <UserMinus className="w-3.5 h-3.5" />
                   </button>
@@ -121,14 +119,8 @@ export const ParticipantsList: React.FC<ParticipantsListProps> = ({
           );
         })}
       </div>
-
-      {/* Footer Info */}
-      <div className="pt-3 border-t border-dark-700/70 text-[11px] text-gray-500 flex items-center justify-between">
-        <span className="flex items-center gap-1">
-          <Shield className="w-3 h-3 text-emerald-500" /> Host-controlled
-        </span>
-        <span>V1 Serverless</span>
-      </div>
     </div>
   );
 };
+
+export default ParticipantsList;

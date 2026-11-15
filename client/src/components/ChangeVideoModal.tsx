@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Play, Link2, CheckCircle2, Film } from 'lucide-react';
+import { X, Link2, CheckCircle2, Film } from 'lucide-react';
 import { api } from '../services/api';
 import { detectProviderQuick, PROVIDER_META, COMPATIBILITY_META } from '../utils/resolver';
 
@@ -83,28 +83,28 @@ export const ChangeVideoModal: React.FC<ChangeVideoModalProps> = ({
   const activeMeta = detected ? PROVIDER_META[detected.provider] : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-lg bg-dark-900 border border-dark-700 rounded-2xl p-6 shadow-2xl relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      <div className="w-full max-w-lg bg-[#0d0f14] border border-white/[0.08] rounded-2xl p-6 shadow-2xl relative text-left">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white p-1 rounded-lg hover:bg-dark-800 transition-colors"
+          className="absolute top-4 right-4 text-white/40 hover:text-white p-1 rounded-lg hover:bg-white/[0.06] transition-colors"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
         <div className="flex items-center gap-2 mb-1">
-          <Film className="w-5 h-5 text-brand-400" />
-          <h3 className="text-base font-semibold text-white">Change Playing Video</h3>
+          <Film className="w-4 h-4 text-white/70" />
+          <h3 className="text-sm font-medium text-white">Change Video</h3>
         </div>
-        <p className="text-xs text-gray-400 mb-4">
-          Supported: YouTube, Direct MP4/WebM, HLS (.m3u8), Vimeo, Dailymotion, DASH (.mpd), Twitch.
+        <p className="text-xs text-white/40 mb-4">
+          Paste any supported link: YouTube, direct MP4, HLS (.m3u8), Vimeo, Dailymotion, Twitch, Google Drive.
         </p>
 
         <form onSubmit={handleApply} className="space-y-4">
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-medium text-gray-300">
-                Paste Video Link
+              <label className="block text-xs font-medium text-white/50">
+                Video Link
               </label>
               {activeMeta && (
                 <span className={`text-[10px] px-2 py-0.5 rounded-full border ${activeMeta.badgeBg}`}>
@@ -117,33 +117,33 @@ export const ChangeVideoModal: React.FC<ChangeVideoModalProps> = ({
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://... (YouTube, MP4, HLS, Vimeo, Dailymotion, DASH, Twitch)"
-                className="w-full bg-dark-800 border border-dark-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-500 outline-none focus:border-brand-500 pr-9"
+                placeholder="https://..."
+                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 outline-none focus:border-white/20 pr-9 transition-colors"
               />
-              <Link2 className="w-4 h-4 text-gray-500 absolute right-3 pointer-events-none" />
+              <Link2 className="w-4 h-4 text-white/30 absolute right-3 pointer-events-none" />
             </div>
           </div>
 
           {loading && (
-            <p className="text-xs text-brand-400 animate-pulse">Resolving video stream...</p>
+            <p className="text-xs text-white/50 animate-pulse">Resolving video stream...</p>
           )}
 
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-rose-400">{error}</p>}
 
           {preview && preview.info && (
-            <div className="p-3 rounded-xl bg-dark-850 border border-dark-700 flex flex-col gap-2">
+            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.08] flex flex-col gap-2">
               <div className="flex items-center gap-3">
                 <img
                   src={preview.info.thumbnailUrl}
                   alt={preview.info.title}
-                  className="w-16 h-10 object-cover rounded bg-dark-950 flex-shrink-0"
+                  className="w-16 h-10 object-cover rounded bg-black/40 flex-shrink-0"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-white truncate">{preview.info.title}</p>
+                  <p className="text-xs font-medium text-white truncate">{preview.info.title}</p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] text-gray-400 truncate">{preview.info.authorName}</span>
+                    <span className="text-[10px] text-white/40 truncate">{preview.info.authorName}</span>
                     {preview.info.provider && (
-                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-brand-500/20 text-brand-300 uppercase">
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/[0.06] text-white/70 uppercase">
                         {preview.info.provider}
                       </span>
                     )}
@@ -153,11 +153,13 @@ export const ChangeVideoModal: React.FC<ChangeVideoModalProps> = ({
               </div>
 
               {detected && COMPATIBILITY_META[detected.compatibility] && (
-                <div className="pt-2 border-t border-dark-750 flex items-start gap-1.5">
-                  <span className={`text-[9px] px-2 py-0.5 rounded-full border font-semibold whitespace-nowrap ${COMPATIBILITY_META[detected.compatibility].badgeClass}`}>
+                <div className="pt-2 border-t border-white/[0.06] flex items-start gap-1.5">
+                  <span
+                    className={`text-[9px] px-2 py-0.5 rounded-full border font-medium whitespace-nowrap ${COMPATIBILITY_META[detected.compatibility].badgeClass}`}
+                  >
                     {COMPATIBILITY_META[detected.compatibility].label}
                   </span>
-                  <p className="text-[10px] text-gray-300 leading-tight">
+                  <p className="text-[10px] text-white/40 leading-tight">
                     {preview.info.explanation || COMPATIBILITY_META[detected.compatibility].description}
                   </p>
                 </div>
@@ -169,14 +171,14 @@ export const ChangeVideoModal: React.FC<ChangeVideoModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2 rounded-xl bg-dark-800 hover:bg-dark-750 text-gray-300 text-xs font-medium border border-dark-700 transition-colors"
+              className="flex-1 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-white/70 text-xs font-medium border border-white/[0.08] transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!preview || loading}
-              className="flex-1 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium transition-all shadow-md shadow-brand-500/20 disabled:opacity-40"
+              className="flex-1 py-2 rounded-xl bg-white text-black hover:bg-white/90 text-xs font-medium transition-all disabled:opacity-30"
             >
               Switch Video
             </button>
@@ -184,27 +186,27 @@ export const ChangeVideoModal: React.FC<ChangeVideoModalProps> = ({
         </form>
 
         {demos.length > 0 && (
-          <div className="mt-5 pt-4 border-t border-dark-800">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-              Curated Provider Samples:
+          <div className="mt-5 pt-4 border-t border-white/[0.06]">
+            <p className="text-[11px] font-medium text-white/40 uppercase tracking-wider mb-2">
+              Sample Providers:
             </p>
-            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto scrollbar-none">
               {demos.map((d) => (
                 <button
                   key={d.id || d.videoId}
                   onClick={() => handleSelectDemo(d)}
-                  className="flex items-center gap-2 p-2 rounded-lg bg-dark-800 hover:bg-dark-750 border border-dark-700/80 text-left transition-colors group"
+                  className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.05] text-left transition-colors group"
                 >
                   <img
                     src={d.thumbnail}
                     alt={d.title}
-                    className="w-10 h-7 object-cover rounded bg-dark-950 flex-shrink-0"
+                    className="w-10 h-7 object-cover rounded bg-black/40 flex-shrink-0"
                   />
                   <div className="min-w-0">
-                    <p className="text-[11px] font-medium text-gray-200 group-hover:text-white truncate">
+                    <p className="text-[11px] font-medium text-white/80 group-hover:text-white truncate">
                       {d.title}
                     </p>
-                    <span className="text-[9px] text-brand-400 truncate block">
+                    <span className="text-[9px] text-white/40 truncate block">
                       {d.category || d.provider}
                     </span>
                   </div>
@@ -217,3 +219,5 @@ export const ChangeVideoModal: React.FC<ChangeVideoModalProps> = ({
     </div>
   );
 };
+
+export default ChangeVideoModal;
