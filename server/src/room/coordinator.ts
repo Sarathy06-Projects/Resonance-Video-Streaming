@@ -728,6 +728,69 @@ export class RoomCoordinator {
         break;
       }
 
+      case 'p2p_stream:signal': {
+        // Relay direct P2P local video streaming signaling (SDP offer, answer, ICE candidate)
+        const targetId = String(event.payload?.targetParticipantId || '');
+        if (!targetId || targetId === senderId) return;
+
+        // Security: Validate payload size
+        const serialized = JSON.stringify(event.payload);
+        if (serialized.length > 65536) return;
+
+        // Security: Only room host can initiate P2P stream offer
+        if (event.payload?.type === 'offer' && !isHost) {
+          return;
+        }
+
+        // 2-person limit: Only host and the first joined viewer are paired in P2P stream
+        const viewerParticipants = Array.from(this.participants.values()).filter(
+          (p) => p.id !== this.metadata.hostId
+        );
+        if (viewerParticipants.length > 1) {
+          viewerParticipants.sort((a, b) => a.joinedAt - b.joinedAt);
+          const allowedViewer = viewerParticipants[0];
+          if (senderId !== this.metadata.hostId && senderId !== allowedViewer.id) {
+            return;
+          }
+          if (isHost && targetId !== allowedViewer.id) {
+            return;
+          }
+        }
+
+        this.sendEventTo(targetId, {
+          id: nanoid(),
+          roomId: this.roomId,
+          type: 'p2p_stream:signal',
+          senderId,
+          sequence: this.getNextSequence(),
+          sentAt: Date.now(),
+          payload: {
+            ...event.payload,
+            senderId,
+            senderName: client.participant.name,
+          },
+        });
+        break;
+      }
+
+      case 'p2p_stream:state': {
+        // Broadcast host authoritative playback state for P2P video stream
+        if (!isHost) return;
+        this.broadcast({
+          id: nanoid(),
+          roomId: this.roomId,
+          type: 'p2p_stream:state',
+          senderId,
+          sequence: this.getNextSequence(),
+          sentAt: Date.now(),
+          payload: {
+            ...event.payload,
+            senderId,
+          },
+        });
+        break;
+      }
+
       case 'call:media-state': {
         // Broadcast mic mute or camera disabled state
         this.broadcast({

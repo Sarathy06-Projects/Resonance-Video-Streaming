@@ -27,6 +27,8 @@ interface UseRoomSocketProps {
   onCallParticipantLeft?: (participantId: string, callParticipants: string[]) => void;
   onCallSignal?: (senderId: string, payload: any) => void;
   onCallMediaState?: (participantId: string, isMuted: boolean, isCameraOff: boolean) => void;
+  onP2PStreamSignal?: (senderId: string, payload: any) => void;
+  onP2PStreamState?: (senderId: string, state: any) => void;
 }
 
 export function useRoomSocket({
@@ -47,6 +49,8 @@ export function useRoomSocket({
   onCallParticipantLeft,
   onCallSignal,
   onCallMediaState,
+  onP2PStreamSignal,
+  onP2PStreamState,
 }: UseRoomSocketProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<
@@ -70,6 +74,8 @@ export function useRoomSocket({
     onCallParticipantLeft,
     onCallSignal,
     onCallMediaState,
+    onP2PStreamSignal,
+    onP2PStreamState,
   });
 
   useEffect(() => {
@@ -89,6 +95,8 @@ export function useRoomSocket({
       onCallParticipantLeft,
       onCallSignal,
       onCallMediaState,
+      onP2PStreamSignal,
+      onP2PStreamState,
     };
   });
 
@@ -168,7 +176,11 @@ export function useRoomSocket({
       // WebRTC Signals
       if (Array.isArray(data.signals) && data.signals.length > 0) {
         for (const sig of data.signals) {
-          callbacksRef.current.onCallSignal?.(sig.senderId, sig.payload);
+          if (sig.payload?.isP2PStream || sig.payload?.p2pStream) {
+            callbacksRef.current.onP2PStreamSignal?.(sig.senderId, sig.payload);
+          } else {
+            callbacksRef.current.onCallSignal?.(sig.senderId, sig.payload);
+          }
         }
       }
 
@@ -481,6 +493,16 @@ export function useRoomSocket({
             break;
           }
 
+          case 'p2p_stream:signal': {
+            callbacksRef.current.onP2PStreamSignal?.(roomEvent.senderId, roomEvent.payload);
+            break;
+          }
+
+          case 'p2p_stream:state': {
+            callbacksRef.current.onP2PStreamState?.(roomEvent.senderId, roomEvent.payload);
+            break;
+          }
+
           case 'call:media-state': {
             const { participantId, isMuted, isCameraOff } = roomEvent.payload;
             callbacksRef.current.onCallMediaState?.(participantId, isMuted, isCameraOff);
@@ -615,6 +637,27 @@ export function useRoomSocket({
             token,
             targetParticipantId: payload.targetParticipantId,
             payload,
+          }),
+        }).catch(() => {});
+      } else if (type === 'p2p_stream:signal') {
+        fetch(`/api/rooms/${roomId}/signal`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            targetParticipantId: payload.targetParticipantId,
+            payload: { ...payload, isP2PStream: true },
+          }),
+        }).catch(() => {});
+      } else if (type === 'p2p_stream:state') {
+        fetch(`/api/rooms/${roomId}/playback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            action: payload.action || 'play',
+            position: payload.position ?? 0,
+            playbackRate: payload.playbackRate ?? 1,
           }),
         }).catch(() => {});
       }
@@ -779,6 +822,17 @@ export function useRoomSocket({
     [send]
   );
 
+  // Direct WebRTC P2P Video Streaming Emitters (Host & Viewer)
+  const emitP2PStreamSignal = useCallback(
+    (targetParticipantId: string, signal: any) =>
+      send('p2p_stream:signal', { targetParticipantId, ...signal }),
+    [send]
+  );
+  const emitP2PStreamState = useCallback(
+    (state: any) => send('p2p_stream:state', state),
+    [send]
+  );
+
   return {
     connectionStatus,
     metadata,
@@ -813,5 +867,7 @@ export function useRoomSocket({
     emitLeaveCall,
     emitCallSignal,
     emitMediaState,
+    emitP2PStreamSignal,
+    emitP2PStreamState,
   };
 }

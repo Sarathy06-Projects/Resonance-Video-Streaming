@@ -191,9 +191,9 @@ async function resolveMediaUrl(rawUrl: string) {
     return resolveYouTube(trimmed, `https://www.youtube.com/watch?v=${trimmed}`);
   }
 
-  // Direct Local Media File (Selected from Host's Device)
-  if (trimmed.startsWith('local://') || trimmed.startsWith('blob:')) {
-    const rawFileName = trimmed.replace(/^local:\/\//, '').replace(/^blob:[^/]+\//, '');
+  // Direct P2P Local Media File (Selected from Host's Device)
+  if (trimmed.startsWith('p2p://') || trimmed.startsWith('local://') || trimmed.startsWith('blob:')) {
+    const rawFileName = trimmed.replace(/^(p2p|local):\/\//, '').replace(/^blob:[^/]+\//, '');
     const cleanTitle = decodeURIComponent(rawFileName) || 'Local Video File';
     return {
       videoId: trimmed,
@@ -201,7 +201,7 @@ async function resolveMediaUrl(rawUrl: string) {
       title: cleanTitle,
       authorName: 'Local Video',
       thumbnailUrl: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=480&auto=format&fit=crop',
-      provider: 'direct',
+      provider: 'p2p_local',
       format: 'mp4',
       capabilities: {
         canPlay: true,
@@ -215,7 +215,7 @@ async function resolveMediaUrl(rawUrl: string) {
       supported: true,
       compatibility: 'fully_syncable',
       playbackMode: 'player',
-      explanation: 'Direct local video playback with frame-locked synchronization.',
+      explanation: 'Direct browser-to-browser P2P WebRTC video stream with zero server media infrastructure.',
     };
   }
 
@@ -1297,7 +1297,10 @@ routeBoth('post', '/rooms/:id/call/token', async (req: Request, res: Response) =
   }
 });
 
-// 13. WebRTC Signaling for Video Call
+// In-memory rate limiting for signaling on serverless worker
+const serverlessSignalRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+// 13. WebRTC Signaling for Video Call & Local P2P Video Streaming
 routeBoth('post', '/rooms/:id/signal', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -1308,10 +1311,52 @@ routeBoth('post', '/rooms/:id/signal', async (req: Request, res: Response) => {
       return;
     }
 
+    if (!targetParticipantId || typeof targetParticipantId !== 'string' || targetParticipantId.length > 64) {
+      res.status(400).json({ error: 'Invalid target participant' });
+      return;
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      res.status(400).json({ error: 'Invalid signal payload' });
+      return;
+    }
+
+    const serializedPayload = JSON.stringify(payload);
+    if (serializedPayload.length > 65536) {
+      res.status(400).json({ error: 'Signal payload exceeds maximum size (64KB)' });
+      return;
+    }
+
+    // Rate limiting: 60 signals per minute per user
+    const now = Date.now();
+    const rateLimit = serverlessSignalRateLimits.get(decoded.userId) || { count: 0, resetAt: now + 60000 };
+    if (now > rateLimit.resetAt) {
+      rateLimit.count = 0;
+      rateLimit.resetAt = now + 60000;
+    }
+    rateLimit.count++;
+    serverlessSignalRateLimits.set(decoded.userId, rateLimit);
+    if (rateLimit.count > 60) {
+      res.status(429).json({ error: 'Too many signaling messages. Rate limit exceeded.' });
+      return;
+    }
+
+    // If signal is an offer for local P2P video streaming, verify user is the authoritative host
+    if (payload.isP2PStream && payload.type === 'offer') {
+      const roomRes = await query('SELECT host_id FROM rooms WHERE id = $1', [id]);
+      if (roomRes.rows.length === 0 || roomRes.rows[0].host_id !== decoded.userId) {
+        res.status(403).json({ error: 'Only the room host can publish local video streams' });
+        return;
+      }
+    }
+
+    // Prune stale signals older than 2 minutes
+    await query(`DELETE FROM room_signals WHERE created_at < NOW() - INTERVAL '2 minutes'`).catch(() => {});
+
     await query(
       `INSERT INTO room_signals (room_id, sender_id, recipient_id, payload, created_at)
        VALUES ($1, $2, $3, $4, NOW())`,
-      [id, decoded.userId, targetParticipantId, JSON.stringify(payload)]
+      [id, decoded.userId, targetParticipantId, serializedPayload]
     );
 
     res.json({ success: true });

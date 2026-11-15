@@ -312,4 +312,10 @@ describe('Resonance Realtime Features — Live Chat & Audio/Video Calling', () =
       assert.strictEqual(dbRes.rows[0].call_mode, null);
     });
   });
+
+  after(async () => {
+    if (server) {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
 });

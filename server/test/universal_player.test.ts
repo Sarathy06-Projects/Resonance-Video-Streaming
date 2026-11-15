@@ -411,4 +411,10 @@ describe('Resonance Universal Video Link Support & Playback Engine Test Suite', 
       assert.strictEqual(dbRes.rows[0].video_id, primeUrl);
     });
   });
+
+  after(async () => {
+    if (server) {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
 });

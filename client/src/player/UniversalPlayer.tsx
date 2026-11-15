@@ -25,6 +25,7 @@ import { DailymotionAdapter } from './DailymotionAdapter';
 import { TwitchAdapter } from './TwitchAdapter';
 import { GenericEmbedAdapter } from './GenericEmbedAdapter';
 import { ExternalPlaybackView } from './ExternalPlaybackView';
+import { P2PLocalVideoPlayer } from './P2PLocalVideoPlayer';
 import { COMPATIBILITY_META } from '../utils/resolver';
 
 export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
@@ -44,6 +45,15 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
   onHostRate,
   onPlayNextQueue,
   hasQueueItem,
+  roomId,
+  hostId,
+  myParticipantId,
+  participants,
+  emitP2PStreamSignal,
+  emitP2PStreamState,
+  onIncomingSignalRef,
+  onIncomingStateRef,
+  onStopSharingLocal,
 }) => {
   const playerWrapperRef = useRef<HTMLDivElement | null>(null);
   const adapterRef = useRef<PlayerAdapter | null>(null);
@@ -423,6 +433,31 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
 
   const meta = PROVIDER_META[activeProvider] || PROVIDER_META.youtube;
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  const isP2PLocal =
+    activeProvider === 'p2p_local' ||
+    (videoUrl || activeVideoId || '').startsWith('p2p://') ||
+    (videoUrl || activeVideoId || '').startsWith('local://');
+
+  if (isP2PLocal) {
+    return (
+      <P2PLocalVideoPlayer
+        roomId={roomId || ''}
+        isHost={isHost}
+        hostId={hostId || ''}
+        hostName={hostName}
+        myParticipantId={myParticipantId || ''}
+        participants={participants || []}
+        initialBlobUrl={localBlobUrl}
+        initialFileName={decodeURIComponent((videoUrl || activeVideoId || '').replace(/^(p2p|local):\/\//, ''))}
+        emitSignal={emitP2PStreamSignal || (() => {})}
+        emitState={emitP2PStreamState || (() => {})}
+        onIncomingSignalRef={onIncomingSignalRef}
+        onIncomingStateRef={onIncomingStateRef}
+        onStopSharing={onStopSharingLocal}
+      />
+    );
+  }
 
   return (
     <div

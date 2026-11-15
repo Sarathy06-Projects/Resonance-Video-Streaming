@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Share2,
   Settings,
@@ -50,6 +50,9 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
   const [isChangeVideoOpen, setIsChangeVideoOpen] = useState(false);
   const [copiedRoomId, setCopiedRoomId] = useState(false);
 
+  const p2pSignalRef = useRef<((senderId: string, payload: any) => void) | null>(null);
+  const p2pStateRef = useRef<((senderId: string, state: any) => void) | null>(null);
+
   const {
     connectionStatus,
     metadata,
@@ -82,9 +85,13 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     emitEndCall,
     emitJoinCall,
     emitLeaveCall,
+    emitP2PStreamSignal,
+    emitP2PStreamState,
   } = useRoomSocket({
     roomId,
     token,
+    onP2PStreamSignal: (senderId, payload) => p2pSignalRef.current?.(senderId, payload),
+    onP2PStreamState: (senderId, state) => p2pStateRef.current?.(senderId, state),
     onKicked: (msg) => {
       alert(msg || 'You were removed from this room.');
       onLeaveRoom();
@@ -335,6 +342,17 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
               onHostRate={(rate) => emitRate(rate)}
               onPlayNextQueue={() => emitPlayNextQueue()}
               hasQueueItem={queue.length > 0}
+              roomId={roomId}
+              hostId={hostId}
+              myParticipantId={session?.userId || 'me'}
+              participants={participants}
+              emitP2PStreamSignal={emitP2PStreamSignal}
+              emitP2PStreamState={emitP2PStreamState}
+              onIncomingSignalRef={p2pSignalRef}
+              onIncomingStateRef={p2pStateRef}
+              onStopSharingLocal={() => {
+                setIsChangeVideoOpen(true);
+              }}
             />
           </div>
 

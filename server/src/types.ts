@@ -1,6 +1,7 @@
 export type VideoProviderType =
   | 'youtube'
   | 'direct'
+  | 'p2p_local'
   | 'hls'
   | 'vimeo'
   | 'dailymotion'
@@ -118,6 +119,8 @@ export type RoomEvent = {
     | 'call:ended'
     | 'call:participant_joined'
     | 'call:participant_left'
+    | 'p2p_stream:signal'
+    | 'p2p_stream:state'
     | 'ping'
     | 'pong';
   senderId: string;

@@ -1,4 +1,4 @@
-import { Reaction, VideoProviderType, CompatibilityStatus, PlaybackCapabilities, PlaybackState } from '../types';
+import { Reaction, VideoProviderType, CompatibilityStatus, PlaybackCapabilities, PlaybackState, Participant } from '../types';
 
 export type { PlaybackCapabilities, CompatibilityStatus };
 export type PlayerCapabilities = PlaybackCapabilities;
@@ -66,4 +66,13 @@ export interface UniversalPlayerProps {
   onHostRate: (rate: number) => void;
   onPlayNextQueue?: () => void;
   hasQueueItem?: boolean;
+  roomId?: string;
+  hostId?: string;
+  myParticipantId?: string;
+  participants?: Participant[];
+  emitP2PStreamSignal?: (targetParticipantId: string, signal: any) => void;
+  emitP2PStreamState?: (state: any) => void;
+  onIncomingSignalRef?: React.MutableRefObject<((senderId: string, payload: any) => void) | null>;
+  onIncomingStateRef?: React.MutableRefObject<((senderId: string, state: any) => void) | null>;
+  onStopSharingLocal?: () => void;
 }

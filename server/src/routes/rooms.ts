@@ -662,7 +662,10 @@ router.post('/:id/call/token', async (req: Request, res: Response) => {
   }
 });
 
-// Signal Exchange Endpoint
+// In-memory rate limiting for signaling
+const signalRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+// Signal Exchange Endpoint (WebRTC Signaling for Video Call & P2P Stream)
 router.post('/:id/signal', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -673,10 +676,52 @@ router.post('/:id/signal', async (req: Request, res: Response) => {
       return;
     }
 
+    if (!targetParticipantId || typeof targetParticipantId !== 'string' || targetParticipantId.length > 64) {
+      res.status(400).json({ error: 'Invalid target participant' });
+      return;
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      res.status(400).json({ error: 'Invalid signal payload' });
+      return;
+    }
+
+    const serializedPayload = JSON.stringify(payload);
+    if (serializedPayload.length > 65536) {
+      res.status(400).json({ error: 'Signal payload exceeds maximum size (64KB)' });
+      return;
+    }
+
+    // Rate limiting: 60 signals per minute per user
+    const now = Date.now();
+    const rateLimit = signalRateLimits.get(decoded.userId) || { count: 0, resetAt: now + 60000 };
+    if (now > rateLimit.resetAt) {
+      rateLimit.count = 0;
+      rateLimit.resetAt = now + 60000;
+    }
+    rateLimit.count++;
+    signalRateLimits.set(decoded.userId, rateLimit);
+    if (rateLimit.count > 60) {
+      res.status(429).json({ error: 'Too many signaling messages. Rate limit exceeded.' });
+      return;
+    }
+
+    // If signal is an offer for local P2P video streaming, verify user is the authoritative host
+    if (payload.isP2PStream && payload.type === 'offer') {
+      const roomRes = await query('SELECT host_id FROM rooms WHERE id = $1', [id]);
+      if (roomRes.rows.length === 0 || roomRes.rows[0].host_id !== decoded.userId) {
+        res.status(403).json({ error: 'Only the room host can publish local video streams' });
+        return;
+      }
+    }
+
+    // Prune stale signals older than 2 minutes
+    await query(`DELETE FROM room_signals WHERE created_at < NOW() - INTERVAL '2 minutes'`).catch(() => {});
+
     await query(
       `INSERT INTO room_signals (room_id, sender_id, recipient_id, payload, created_at)
        VALUES ($1, $2, $3, $4, NOW())`,
-      [id, decoded.userId, targetParticipantId, JSON.stringify(payload)]
+      [id, decoded.userId, targetParticipantId, serializedPayload]
     );
 
     res.json({ success: true });

@@ -123,6 +123,16 @@ export function detectProviderQuick(
     };
   }
 
+  // Direct P2P Local Video Stream
+  if (lower.startsWith('p2p://') || lower.startsWith('local://')) {
+    return {
+      provider: 'p2p_local',
+      videoId: trimmed,
+      compatibility: 'fully_syncable',
+      playbackMode: 'player',
+    };
+  }
+
   // Direct MP4 / WebM / OGG / MOV / MKV / Local Video Files
   if (
     lower.endsWith('.mp4') ||
@@ -132,7 +142,6 @@ export function detectProviderQuick(
     lower.endsWith('.mov') ||
     lower.endsWith('.m4v') ||
     lower.endsWith('.mkv') ||
-    lower.startsWith('local://') ||
     lower.startsWith('blob:')
   ) {
     return {
@@ -335,6 +344,12 @@ export const PROVIDER_META: Record<
     color: '#3b82f6',
     badgeBg: 'bg-blue-500/15 border-blue-500/30 text-blue-400',
     capabilitiesText: 'Full Native Sync: Play, Pause, Seek, Rate',
+  },
+  p2p_local: {
+    name: 'P2P Local Video',
+    color: '#6366f1',
+    badgeBg: 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400',
+    capabilitiesText: 'Direct WebRTC P2P: Frame-Accurate Zero-Server Sync',
   },
   hls: {
     name: 'HLS Stream (.m3u8)',
