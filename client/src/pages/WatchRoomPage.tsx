@@ -113,6 +113,18 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     }
   }, [token]);
 
+  // Dynamic Document Title
+  React.useEffect(() => {
+    if (metadata?.title) {
+      document.title = `${metadata.title} — Resonance`;
+    } else {
+      document.title = 'Resonance';
+    }
+    return () => {
+      document.title = 'Resonance';
+    };
+  }, [metadata?.title]);
+
   const me = participants.find((p) => p.id === session?.userId || p.name === userName);
   const currentUserId = session?.userId || (me ? me.id : '');
   const effectiveUserName = userName || session?.name || (me ? me.name : 'Host');

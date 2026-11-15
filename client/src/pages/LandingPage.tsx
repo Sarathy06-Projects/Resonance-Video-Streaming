@@ -167,6 +167,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
 
+  // Page Title
+  useEffect(() => {
+    document.title = 'Resonance';
+  }, []);
+
   // Scroll detection for navbar
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
