@@ -19,19 +19,21 @@ export const AuroraBackground: React.FC<AuroraBackgroundProps> = ({
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div
           className={`
-            [--aurora:repeating-linear-gradient(115deg,#4f46e5_0%,#6366f1_12%,#38bdf8_24%,#818cf8_36%,#a855f7_48%,#4f46e5_60%)]
-            [background-image:var(--aurora)]
-            [background-size:250%_150%]
-            [background-position:50%_50%]
-            filter blur-[70px] sm:blur-[90px]
-            after:content-[""] after:absolute after:inset-0 after:[background-image:var(--aurora)]
-            after:[background-size:200%_150%]
-            after:animate-aurora
+            [--white-gradient:repeating-linear-gradient(100deg,#fff_0%,#fff_7%,transparent_10%,transparent_12%,#fff_16%)]
+            [--dark-gradient:repeating-linear-gradient(100deg,#000_0%,#000_7%,transparent_10%,transparent_12%,#000_16%)]
+            [--aurora:repeating-linear-gradient(100deg,#3b82f6_10%,#818cf8_15%,#60a5fa_20%,#c084fc_25%,#38bdf8_30%)]
+            [background-image:var(--dark-gradient),var(--aurora)]
+            [background-size:300%,_200%]
+            [background-position:50%_50%,50%_50%]
+            filter blur-[10px]
+            after:content-[""] after:absolute after:inset-0 after:[background-image:var(--dark-gradient),var(--aurora)]
+            after:[background-size:200%,_100%]
+            after:animate-aurora after:mix-blend-difference
             pointer-events-none
-            absolute -inset-[25px] opacity-30 sm:opacity-35 will-change-transform
+            absolute -inset-[10px] opacity-45 will-change-transform
             ${
               showRadialGradient
-                ? '[mask-image:radial-gradient(ellipse_75%_60%_at_50%_25%,black_20%,transparent_80%)]'
+                ? '[mask-image:radial-gradient(ellipse_at_50%_0%,black_25%,transparent_75%)]'
                 : ''
             }
           `}
@@ -43,3 +45,4 @@ export const AuroraBackground: React.FC<AuroraBackgroundProps> = ({
 };
 
 export default AuroraBackground;
+
