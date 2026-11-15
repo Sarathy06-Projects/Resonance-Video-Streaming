@@ -400,26 +400,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                       <span>Free & instant join</span>
                     </span>
                   </div>
-
-                  {/* Supported Platforms with Brand Logos */}
-                  <div className="pt-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40 mb-2.5">
-                      Supported Streaming Sources
-                    </p>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      {supportedPlatforms.map((p) => (
-                        <div
-                          key={p.name}
-                          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.07] hover:border-white/[0.14] transition-all shadow-sm select-none"
-                        >
-                          {p.icon}
-                          <span className="font-medium text-white/75 text-[11px] sm:text-xs tracking-tight">
-                            {p.name}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                 </div>
 
                 {/* Right Column: Room Creator Interface (Interactive Card) */}
@@ -589,6 +569,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                         <span>{isCreating ? 'Creating Watch Room...' : 'Start a room with someone'}</span>
                       </button>
                     </form>
+
+                    {/* Supported Streaming Sources Row at bottom of card */}
+                    <div className="pt-4 mt-4 border-t border-white/[0.07]">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45 mb-2.5">
+                        Supported Streaming Sources
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        {supportedPlatforms.map((p) => (
+                          <div
+                            key={p.name}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.07] hover:border-white/[0.14] transition-all shadow-sm select-none"
+                          >
+                            {p.icon}
+                            <span className="font-medium text-white/75 text-[11px] tracking-tight">
+                              {p.name}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               </div>
