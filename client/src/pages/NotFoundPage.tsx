@@ -33,12 +33,14 @@ export const NotFoundPage: React.FC<NotFoundPageProps> = ({ onGoHome }) => {
             e.preventDefault();
             onGoHome();
           }}
-          className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-white group"
+          aria-label="Resonance"
+          className="flex items-center group transition-opacity hover:opacity-90"
         >
-          <div className="w-6 h-6 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center text-white shadow-sm group-hover:bg-white/15 transition-all">
-            <Play className="w-3 h-3 fill-white ml-0.5" />
-          </div>
-          <span className="tracking-[-0.03em]">resonance</span>
+          <img
+            src="/resonance-logo-gold.png"
+            alt="Resonance"
+            className="h-6 w-auto object-contain"
+          />
         </a>
 
         <button

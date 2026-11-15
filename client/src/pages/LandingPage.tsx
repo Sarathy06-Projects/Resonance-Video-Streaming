@@ -269,12 +269,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
           {/* Brand Mark */}
           <a
             href="#top"
-            className="flex items-center gap-2.5 text-[15px] font-medium tracking-tight text-white group"
+            aria-label="Resonance"
+            className="flex items-center group transition-opacity hover:opacity-90 select-none"
           >
-            <div className="w-6 h-6 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center text-white shadow-sm group-hover:bg-white/15 transition-all">
-              <Play className="w-3 h-3 fill-white ml-0.5" />
-            </div>
-            <span className="font-semibold tracking-[-0.03em]">resonance</span>
+            <img
+              src="/resonance-logo-gold.png"
+              alt="Resonance"
+              className="h-6 sm:h-7 w-auto object-contain"
+            />
           </a>
 
           {/* Centered Nav Links */}
@@ -1135,11 +1137,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
       {/* ========================================================= */}
       <footer className="border-t border-white/[0.06] bg-[#07080a] py-12 px-4 sm:px-6 lg:px-8 text-xs text-white/40">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md bg-white/10 flex items-center justify-center text-white">
-              <Play className="w-2.5 h-2.5 fill-white" />
-            </div>
-            <span className="font-semibold text-white tracking-tight">resonance</span>
+          <div className="flex items-center gap-2.5">
+            <img
+              src="/resonance-logo-gold.png"
+              alt="Resonance"
+              className="h-5 sm:h-6 w-auto object-contain opacity-90"
+            />
             <span className="text-white/20">|</span>
             <span>Universal Playback Engine</span>
           </div>

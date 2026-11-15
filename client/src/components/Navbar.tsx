@@ -18,21 +18,12 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="h-16 border-b border-dark-700/60 bg-dark-900/90 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-8 flex items-center justify-between">
       {/* Brand */}
       <div className="flex items-center gap-3">
-        <a href="/" className="flex items-center gap-2.5 group">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center shadow-lg shadow-brand-500/20 group-hover:scale-105 transition-transform">
-            <Play className="w-4 h-4 text-white fill-white ml-0.5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-lg tracking-wider text-white">TOGETHER</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">
-                v1.0
-              </span>
-            </div>
-            <p className="text-[11px] text-gray-400 hidden sm:block -mt-0.5">
-              Synced Watch-Parties • Neon DB
-            </p>
-          </div>
+        <a href="/" className="flex items-center group transition-opacity hover:opacity-90">
+          <img
+            src="/resonance-logo-gold.png"
+            alt="Resonance"
+            className="h-6 sm:h-7 w-auto object-contain"
+          />
         </a>
       </div>
 
