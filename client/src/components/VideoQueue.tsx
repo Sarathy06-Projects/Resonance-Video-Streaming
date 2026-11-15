@@ -47,9 +47,9 @@ export const VideoQueue: React.FC<VideoQueueProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0c10] text-white p-4">
+    <div className="flex flex-col h-full min-h-0 bg-[#0a0c10] text-white p-4">
       {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between pb-3 border-b border-white/[0.06] shrink-0">
         <div>
           <h3 className="text-xs font-medium text-white/90">Up Next</h3>
           <p className="text-[11px] text-white/40 mt-0.5">
@@ -69,7 +69,7 @@ export const VideoQueue: React.FC<VideoQueueProps> = ({
 
       {/* Host Add to Queue Form */}
       {isHost ? (
-        <form onSubmit={handleAdd} className="mt-3">
+        <form onSubmit={handleAdd} className="mt-3 shrink-0">
           <div className="flex items-center gap-1.5">
             <input
               type="text"

@@ -70,7 +70,13 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-dark-950 text-gray-100 flex flex-col font-sans selection:bg-brand-500 selection:text-white">
+    <div
+      className={`${
+        currentRoomId && roomToken
+          ? 'h-screen h-[100dvh] overflow-hidden'
+          : 'min-h-screen'
+      } bg-dark-950 text-gray-100 flex flex-col font-sans selection:bg-brand-500 selection:text-white`}
+    >
       {/* If in watch room, we render watch room directly with its integrated top bar */}
       {currentRoomId && roomToken ? (
         <WatchRoomPage

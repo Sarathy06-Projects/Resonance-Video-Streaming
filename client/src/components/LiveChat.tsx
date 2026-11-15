@@ -99,9 +99,9 @@ export const LiveChat: React.FC<LiveChatProps> = ({
   const quickReactions = ['❤️', '🔥', '😂', '🎉', '👏', '🍿'];
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0c10] text-white">
+    <div className="flex flex-col h-full min-h-0 bg-[#0a0c10] text-white">
       {/* Messages Feed */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-none relative">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3 scrollbar-none relative">
         {/* Floating Reactions Overlay inside Chat */}
         <ReactionsOverlay reactions={reactions} compact />
 
@@ -181,7 +181,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
       </div>
 
       {/* Composer Section */}
-      <div className="p-3 border-t border-white/[0.06] bg-[#0c0e14]">
+      <div className="p-3 border-t border-white/[0.06] bg-[#0c0e14] shrink-0">
         {/* Quick Reactions Bar */}
         <div className="flex items-center justify-between pb-2.5 px-0.5">
           <div className="flex items-center gap-1.5">

@@ -185,9 +185,9 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
   const currentMeta = PROVIDER_META[currentProvider] || PROVIDER_META.youtube;
 
   return (
-    <div className="min-h-screen bg-[#07080a] text-[#f5f5f7] flex flex-col selection:bg-white/20 selection:text-white">
+    <div className="h-screen h-[100dvh] max-h-screen bg-[#07080a] text-[#f5f5f7] flex flex-col overflow-hidden selection:bg-white/20 selection:text-white">
       {/* Top Navigation */}
-      <header className="h-[52px] border-b border-white/[0.06] bg-[#07080a]/90 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between z-30 sticky top-0">
+      <header className="h-[52px] shrink-0 border-b border-white/[0.06] bg-[#07080a]/90 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between z-30 sticky top-0">
         {/* Left: Minimal Leave + Title + Room ID */}
         <div className="flex items-center gap-3 min-w-0">
           <button
@@ -285,9 +285,9 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
       </header>
 
       {/* Main Experience: Video Canvas + Sidebar */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
         {/* Left Side: Video Canvas & Controls */}
-        <div className="flex-1 flex flex-col p-3 sm:p-5 lg:p-6 overflow-y-auto">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col p-3 sm:p-4 lg:p-5 overflow-y-auto">
           {/* 16:9 Cinematic Video Player Container */}
           <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black border border-white/[0.06] shadow-2xl relative">
             <VideoPlayer
@@ -376,9 +376,9 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
         </div>
 
         {/* Right Side: Integrated Sidebar */}
-        <div className="w-full lg:w-[350px] xl:w-[380px] flex flex-col h-[520px] lg:h-auto border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0a0c10]">
+        <div className="w-full lg:w-[350px] xl:w-[380px] 2xl:w-[420px] flex flex-col h-[520px] lg:h-full min-h-0 shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0a0c10]">
           {/* Segmented Tab Switcher */}
-          <div className="p-3 border-b border-white/[0.06]">
+          <div className="p-3 border-b border-white/[0.06] shrink-0">
             <div className="grid grid-cols-3 bg-white/[0.03] p-1 rounded-xl border border-white/[0.06] text-xs">
               <button
                 onClick={() => setActiveTab('chat')}
@@ -426,7 +426,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
           </div>
 
           {/* Active Tab View */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             {activeTab === 'chat' && (
               <LiveChat
                 messages={chatMessages}
