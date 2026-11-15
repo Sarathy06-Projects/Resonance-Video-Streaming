@@ -97,7 +97,7 @@ export const TwitchAdapter = forwardRef<PlayerAdapter, TwitchAdapterProps>(
         container.innerHTML = '';
 
         const host = window.location.hostname || 'localhost';
-        const parents = Array.from(new Set([host, 'app.resonance.org.in', 'localhost'])).filter(Boolean);
+        const parents = Array.from(new Set([host, 'www.resonance.org.in', 'resonance.org.in', 'app.resonance.org.in', 'localhost'])).filter(Boolean);
 
         const options: any = {
           width: '100%',

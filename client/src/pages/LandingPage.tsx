@@ -837,7 +837,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                   </div>
                   <div className="mt-4 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between">
                     <span className="text-xs font-mono text-white/80 truncate max-w-[200px]">
-                      resonance.org.in/room/5nn-m67
+                      www.resonance.org.in/room/5nn-m67
                     </span>
                     <button className="text-[11px] font-medium bg-white text-black px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm">
                       <Copy className="w-3 h-3" />
