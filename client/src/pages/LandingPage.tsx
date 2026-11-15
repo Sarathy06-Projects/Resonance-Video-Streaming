@@ -261,11 +261,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
       <header
         className={`fixed top-0 left-0 right-0 w-full z-50 transition-all duration-300 ease-out ${
           scrolled
-            ? 'bg-[#07080a]/75 backdrop-blur-xl backdrop-saturate-150 border-b border-white/[0.08] shadow-[0_4px_30px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.04)]'
-            : 'bg-transparent border-b border-transparent shadow-none'
+            ? 'bg-[#07080a]/85 backdrop-blur-xl backdrop-saturate-150 border-b border-white/[0.08] shadow-[0_4px_30px_rgba(0,0,0,0.5),inset_0_-1px_0_rgba(255,255,255,0.04)]'
+            : 'bg-[#07080a]/60 backdrop-blur-md border-b border-white/[0.05]'
         }`}
       >
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="relative mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Brand Mark */}
           <a
             href="#top"
@@ -277,8 +277,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
             <span className="font-semibold tracking-[-0.03em]">resonance</span>
           </a>
 
-          {/* Nav Links */}
-          <nav className="hidden md:flex items-center gap-7 text-xs font-medium text-white/60">
+          {/* Centered Nav Links */}
+          <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-7 text-xs font-medium text-white/60">
             {navItems.map((item) => (
               <a
                 key={item.label}
@@ -294,6 +294,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
           <div className="hidden md:flex items-center gap-3">
             <button
               onClick={scrollToCreator}
+              aria-label="Start room"
               className="text-xs font-medium bg-white text-black hover:bg-white/90 px-3.5 py-1.5 rounded-full transition-all hover:scale-[1.02] shadow-sm flex items-center gap-1.5 cursor-pointer"
             >
               <span>Start room</span>
@@ -521,6 +522,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                           type="button"
                           role="switch"
                           aria-checked={isPrivate}
+                          aria-label="Require room password"
                           onClick={() => {
                             setIsPrivate(!isPrivate);
                             if (isPrivate) setPasscode('');
@@ -625,7 +627,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                   {/* High-res cinematic video preview mockup */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/30 z-10" />
                   <img
-                    src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop"
+                    src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=75&w=600&auto=format&fit=crop"
+                    srcSet="https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=75&w=400&auto=format&fit=crop 400w, https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=75&w=600&auto=format&fit=crop 600w, https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop 800w"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 380px"
+                    width="400"
+                    height="250"
                     alt="Synchronized Movie Night cinema view"
                     loading="lazy"
                     decoding="async"
@@ -666,7 +672,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                 {/* Authentic UI Frame */}
                 <div className="aspect-[16/10] bg-black relative overflow-hidden flex items-center justify-center border-b border-white/[0.06]">
                   <img
-                    src="https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=800&auto=format&fit=crop"
+                    src="https://images.unsplash.com/photo-1518770660439-4636190af475?q=75&w=600&auto=format&fit=crop"
+                    srcSet="https://images.unsplash.com/photo-1518770660439-4636190af475?q=75&w=400&auto=format&fit=crop 400w, https://images.unsplash.com/photo-1518770660439-4636190af475?q=75&w=600&auto=format&fit=crop 600w, https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=800&auto=format&fit=crop 800w"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 380px"
+                    width="400"
+                    height="250"
                     alt="Online video discovery with friends"
                     loading="lazy"
                     decoding="async"
@@ -710,7 +720,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                 {/* Authentic UI Frame */}
                 <div className="aspect-[16/10] bg-black relative overflow-hidden flex items-center justify-center border-b border-white/[0.06]">
                   <img
-                    src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=800&auto=format&fit=crop"
+                    src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=75&w=600&auto=format&fit=crop"
+                    srcSet="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=75&w=400&auto=format&fit=crop 400w, https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=75&w=600&auto=format&fit=crop 600w, https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=800&auto=format&fit=crop 800w"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 380px"
+                    width="400"
+                    height="250"
                     alt="Late night video stream with friends"
                     loading="lazy"
                     decoding="async"
@@ -900,7 +914,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                   </div>
                   <div className="mt-4 rounded-xl aspect-video bg-black relative overflow-hidden flex items-center justify-center border border-white/[0.06]">
                     <img
-                      src="https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=80&w=800&auto=format&fit=crop"
+                      src="https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=75&w=600&auto=format&fit=crop"
+                      srcSet="https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=75&w=400&auto=format&fit=crop 400w, https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=75&w=600&auto=format&fit=crop 600w, https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=80&w=800&auto=format&fit=crop 800w"
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 380px"
+                      width="400"
+                      height="225"
                       alt="Synchronized playback scene view"
                       loading="lazy"
                       decoding="async"
@@ -1168,6 +1186,9 @@ function FaqAccordionItem({
   return (
     <div className="rounded-xl border border-white/[0.06] bg-[#0c0e14] overflow-hidden text-left transition-colors hover:border-white/[0.1]">
       <button
+        type="button"
+        aria-expanded={isOpen}
+        aria-label={faq.question}
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-5 py-4 flex items-center justify-between gap-4 text-left text-sm font-medium text-white/90 hover:text-white transition-colors"
       >

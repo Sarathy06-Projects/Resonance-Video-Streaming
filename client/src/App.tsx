@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Analytics } from '@vercel/analytics/react';
 import { LandingPage } from './pages/LandingPage';
-import { WatchRoomPage } from './pages/WatchRoomPage';
-import { JoinRoomPage } from './pages/JoinRoomPage';
-import { WatchVideosTogetherPage } from './pages/seo/WatchVideosTogetherPage';
-import { WatchPartyPage } from './pages/seo/WatchPartyPage';
-import { WatchMoviesPage } from './pages/seo/WatchMoviesPage';
-import { NotFoundPage } from './pages/NotFoundPage';
-import { UpgradeModal } from './components/UpgradeModal';
+
+// Code-split heavy routes and components so the initial mobile bundle is ultra-lightweight
+const WatchRoomPage = lazy(() => import('./pages/WatchRoomPage').then(m => ({ default: m.WatchRoomPage })));
+const JoinRoomPage = lazy(() => import('./pages/JoinRoomPage').then(m => ({ default: m.JoinRoomPage })));
+const WatchVideosTogetherPage = lazy(() => import('./pages/seo/WatchVideosTogetherPage').then(m => ({ default: m.WatchVideosTogetherPage })));
+const WatchPartyPage = lazy(() => import('./pages/seo/WatchPartyPage').then(m => ({ default: m.WatchPartyPage })));
+const WatchMoviesPage = lazy(() => import('./pages/seo/WatchMoviesPage').then(m => ({ default: m.WatchMoviesPage })));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
+const UpgradeModal = lazy(() => import('./components/UpgradeModal').then(m => ({ default: m.UpgradeModal })));
 
 export function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -167,13 +169,21 @@ export function App() {
           : 'min-h-screen'
       } bg-dark-950 text-gray-100 flex flex-col font-sans selection:bg-brand-500 selection:text-white`}
     >
-      {renderContent()}
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-[#07080a] flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+          </div>
+        }
+      >
+        {renderContent()}
 
-      {/* Global Upgrade to Premium Modal */}
-      <UpgradeModal
-        isOpen={isPricingModalOpen}
-        onClose={() => setIsPricingModalOpen(false)}
-      />
+        {/* Global Upgrade to Premium Modal */}
+        <UpgradeModal
+          isOpen={isPricingModalOpen}
+          onClose={() => setIsPricingModalOpen(false)}
+        />
+      </Suspense>
 
       {/* Vercel Web Analytics */}
       <Analytics />

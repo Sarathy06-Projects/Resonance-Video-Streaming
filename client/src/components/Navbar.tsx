@@ -55,6 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         {onOpenPricing && (
           <button
             onClick={onOpenPricing}
+            aria-label="Upgrade to Premium"
             className="flex items-center gap-1.5 text-xs font-medium text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 px-3 py-1.5 rounded-lg transition-colors"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -65,6 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         {onOpenNewRoom && (
           <button
             onClick={onOpenNewRoom}
+            aria-label="Create new watch room"
             className="flex items-center gap-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-500 px-3.5 py-1.5 rounded-lg shadow-sm shadow-brand-500/30 transition-all hover:scale-[1.02]"
           >
             <span>+ Create Room</span>
