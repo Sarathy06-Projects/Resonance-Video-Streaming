@@ -123,12 +123,15 @@ export function detectProviderQuick(
     };
   }
 
-  // Direct MP4 / WebM / OGG / Local Video Files
+  // Direct MP4 / WebM / OGG / MOV / MKV / Local Video Files
   if (
     lower.endsWith('.mp4') ||
     lower.endsWith('.webm') ||
     lower.endsWith('.ogg') ||
     lower.endsWith('.ogv') ||
+    lower.endsWith('.mov') ||
+    lower.endsWith('.m4v') ||
+    lower.endsWith('.mkv') ||
     lower.startsWith('local://') ||
     lower.startsWith('blob:')
   ) {

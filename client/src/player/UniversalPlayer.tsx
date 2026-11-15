@@ -13,6 +13,7 @@ import {
   Crown,
   Film,
   Tv,
+  Upload,
 } from 'lucide-react';
 import { UniversalPlayerProps, PlayerAdapter, PlaybackCapabilities, CompatibilityStatus } from './types';
 import { detectProviderQuick, PROVIDER_META, VideoProviderType } from '../utils/resolver';
@@ -76,11 +77,15 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
     if (typeof window === 'undefined') return '';
     if (videoUrl?.startsWith('blob:')) return videoUrl;
     if (activeVideoId?.startsWith('blob:')) return activeVideoId;
-    if (videoUrl?.startsWith('local://') || activeVideoId?.startsWith('local://')) {
-      const fileName = (videoUrl || activeVideoId).replace(/^local:\/\//, '');
+    const target = videoUrl || activeVideoId || '';
+    if (target.startsWith('local://')) {
+      const raw = target.replace(/^local:\/\//, '');
+      const decoded = decodeURIComponent(raw);
       return (
-        sessionStorage.getItem(`together_local_blob_${fileName}`) ||
-        localStorage.getItem(`together_local_blob_${fileName}`) ||
+        sessionStorage.getItem(`together_local_blob_${raw}`) ||
+        sessionStorage.getItem(`together_local_blob_${decoded}`) ||
+        localStorage.getItem(`together_local_blob_${raw}`) ||
+        localStorage.getItem(`together_local_blob_${decoded}`) ||
         sessionStorage.getItem('together_active_local_blob') ||
         ''
       );
@@ -444,14 +449,48 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
                 callbacks={callbacks}
               />
             )}
-            {activeProvider === 'direct' && (
+            {activeProvider === 'direct' &&
+            (videoUrl?.startsWith('local://') || activeVideoId?.startsWith('local://')) &&
+            !localBlobUrl ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/85 backdrop-blur-md z-20">
+                <div className="w-14 h-14 rounded-2xl bg-white/[0.06] border border-white/10 flex items-center justify-center mb-4 text-indigo-400">
+                  <Film className="w-7 h-7" />
+                </div>
+                <h3 className="text-base font-semibold text-white mb-1.5">
+                  Local Video File: {decodeURIComponent((videoUrl || activeVideoId || '').replace(/^local:\/\//, ''))}
+                </h3>
+                <p className="text-xs text-white/50 max-w-md mb-5 leading-relaxed">
+                  This room is watching a local video file. Select the matching video file from your device to join frame-accurate synchronized playback.
+                </p>
+                <label className="px-4 py-2.5 rounded-xl bg-white hover:bg-white/90 text-black font-semibold text-xs tracking-tight cursor-pointer shadow-lg transition-transform hover:scale-105 active:scale-95 flex items-center gap-2">
+                  <Upload className="w-4 h-4" />
+                  <span>Select Video File</span>
+                  <input
+                    type="file"
+                    accept="video/*,video/mp4,video/webm,video/quicktime,video/x-matroska,.mp4,.webm,.ogg,.mkv,.mov,.m4v"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const blob = URL.createObjectURL(file);
+                      const raw = (videoUrl || activeVideoId || '').replace(/^local:\/\//, '');
+                      const decoded = decodeURIComponent(raw);
+                      sessionStorage.setItem(`together_local_blob_${raw}`, blob);
+                      sessionStorage.setItem(`together_local_blob_${decoded}`, blob);
+                      sessionStorage.setItem('together_active_local_blob', blob);
+                      window.location.reload();
+                    }}
+                  />
+                </label>
+              </div>
+            ) : activeProvider === 'direct' ? (
               <Html5Adapter
                 ref={adapterRef}
                 url={activeMediaUrl}
                 format="direct"
                 callbacks={callbacks}
               />
-            )}
+            ) : null}
             {activeProvider === 'hls' && (
               <Html5Adapter
                 ref={adapterRef}

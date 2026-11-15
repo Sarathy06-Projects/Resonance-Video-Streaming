@@ -274,13 +274,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     const blobUrl = URL.createObjectURL(file);
     setLocalFileUrl(blobUrl);
     setDirectError('');
+    if (e.target) e.target.value = '';
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (file && (file.type.startsWith('video/') || /\.(mp4|webm|ogg|mkv|mov)$/i.test(file.name))) {
+    if (file && (file.type.startsWith('video/') || /\.(mp4|webm|ogg|mkv|mov|m4v)$/i.test(file.name))) {
       setLocalFile(file);
       setLocalFileUrl(URL.createObjectURL(file));
       setDirectError('');
@@ -300,10 +301,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setDirectError('');
 
     const name = directHostName.trim() || 'Alex';
+    const rawFileName = localFile.name || 'local_video.mp4';
+    const cleanFileName = encodeURIComponent(rawFileName);
 
     try {
       const res = await api.createRoom({
-        videoUrl: `local://${encodeURIComponent(localFile.name)}`,
+        videoUrl: `local://${cleanFileName}`,
         hostName: name,
         isPrivate: isDirectPrivate,
         passcode: isDirectPrivate ? directPasscode.trim() : undefined,
@@ -313,9 +316,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         localStorage.setItem(`together_token_${res.roomId}`, res.token);
         localStorage.setItem(`together_username_${res.roomId}`, name);
         if (localFileUrl) {
-          sessionStorage.setItem(`together_local_blob_${res.roomId}`, localFileUrl);
-          sessionStorage.setItem(`together_local_blob_${encodeURIComponent(localFile.name)}`, localFileUrl);
-          sessionStorage.setItem('together_active_local_blob', localFileUrl);
+          try {
+            sessionStorage.setItem(`together_local_blob_${res.roomId}`, localFileUrl);
+            sessionStorage.setItem(`together_local_blob_${cleanFileName}`, localFileUrl);
+            sessionStorage.setItem(`together_local_blob_${rawFileName}`, localFileUrl);
+            sessionStorage.setItem('together_active_local_blob', localFileUrl);
+          } catch (storageErr) {
+            console.warn('[Direct Room] Storage warning:', storageErr);
+          }
         }
         trackEvent('room_created', { provider: 'direct_local' });
         onRoomCreated(res.roomId, res.token, name);
@@ -756,13 +764,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     {/* TAB 2: DIRECT (LOCAL VIDEO) */}
                     {activeTab === 'direct' && (
                       <form onSubmit={handleCreateDirectRoom} className="space-y-3.5">
-                        {/* Hidden native file input */}
+                        {/* Native file input with full mobile & desktop support */}
                         <input
+                          id="direct-video-input"
                           ref={fileInputRef}
                           type="file"
-                          accept="video/*,.mp4,.webm,.ogg,.mkv,.mov"
+                          accept="video/*,video/mp4,video/webm,video/quicktime,video/x-matroska,.mp4,.webm,.ogg,.mkv,.mov,.m4v"
                           onChange={handleFileSelect}
-                          className="hidden"
+                          className="sr-only"
                         />
 
                         {/* Drag & Drop / File Selector Box */}
@@ -771,15 +780,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                             Local Video File
                           </label>
                           {!localFile ? (
-                            <div
-                              onClick={() => fileInputRef.current?.click()}
+                            <label
+                              htmlFor="direct-video-input"
                               onDragOver={(e) => {
                                 e.preventDefault();
                                 setIsDragging(true);
                               }}
                               onDragLeave={() => setIsDragging(false)}
                               onDrop={handleDrop}
-                              className={`border border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
+                              className={`block border border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
                                 isDragging
                                   ? 'border-indigo-400 bg-indigo-500/10'
                                   : 'border-white/15 hover:border-white/30 bg-white/[0.02] hover:bg-white/[0.05]'
@@ -794,7 +803,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                               <p className="text-[10px] text-white/40">
                                 MP4, WebM, MKV, or MOV from your device
                               </p>
-                            </div>
+                            </label>
                           ) : (
                             <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-between gap-3">
                               <div className="flex items-center gap-2.5 min-w-0">

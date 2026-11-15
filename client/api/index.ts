@@ -191,6 +191,34 @@ async function resolveMediaUrl(rawUrl: string) {
     return resolveYouTube(trimmed, `https://www.youtube.com/watch?v=${trimmed}`);
   }
 
+  // Direct Local Media File (Selected from Host's Device)
+  if (trimmed.startsWith('local://') || trimmed.startsWith('blob:')) {
+    const rawFileName = trimmed.replace(/^local:\/\//, '').replace(/^blob:[^/]+\//, '');
+    const cleanTitle = decodeURIComponent(rawFileName) || 'Local Video File';
+    return {
+      videoId: trimmed,
+      url: trimmed,
+      title: cleanTitle,
+      authorName: 'Local Video',
+      thumbnailUrl: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=480&auto=format&fit=crop',
+      provider: 'direct',
+      format: 'mp4',
+      capabilities: {
+        canPlay: true,
+        canPause: true,
+        canSeek: true,
+        hasDuration: true,
+        canMute: true,
+        hasVolume: true,
+        canSetRate: true,
+      },
+      supported: true,
+      compatibility: 'fully_syncable',
+      playbackMode: 'player',
+      explanation: 'Direct local video playback with frame-locked synchronization.',
+    };
+  }
+
   let parsed: URL;
   try {
     parsed = new URL(trimmed);
@@ -256,11 +284,21 @@ async function resolveMediaUrl(rawUrl: string) {
     };
   }
 
-  // A. Direct Video (MP4, WebM, OGG)
-  if (path.endsWith('.mp4') || path.endsWith('.webm') || path.endsWith('.ogg') || path.endsWith('.ogv')) {
+  // A. Direct Video (MP4, WebM, OGG, MOV, MKV, M4V)
+  if (
+    path.endsWith('.mp4') ||
+    path.endsWith('.webm') ||
+    path.endsWith('.ogg') ||
+    path.endsWith('.ogv') ||
+    path.endsWith('.mov') ||
+    path.endsWith('.m4v') ||
+    path.endsWith('.mkv')
+  ) {
     let format = 'mp4';
     if (path.endsWith('.webm')) format = 'webm';
     if (path.endsWith('.ogg') || path.endsWith('.ogv')) format = 'ogg';
+    if (path.endsWith('.mov')) format = 'mov';
+    if (path.endsWith('.mkv')) format = 'mkv';
 
     const filename = parsed.pathname.split('/').pop() || `Direct ${format.toUpperCase()} Video`;
     const cleanTitle = decodeURIComponent(filename).replace(/[-_]/g, ' ').replace(/\.\w+$/, '');
@@ -802,7 +840,7 @@ routeBoth('post', '/rooms', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     console.error('[POST /api/rooms] Error:', err);
-    res.status(500).json({ error: 'Failed to create room. Please try again.' });
+    res.status(500).json({ error: err?.message || 'Failed to create room. Please try again.' });
   }
 });
 

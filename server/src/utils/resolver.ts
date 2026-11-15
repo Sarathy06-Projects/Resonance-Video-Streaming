@@ -228,10 +228,20 @@ export async function resolveMediaUrl(rawUrl: string): Promise<ResolvedMediaInfo
   // =========================================================================
   // CATEGORY A: DIRECT VIDEO FILES (MP4, WEBM, OGG)
   // =========================================================================
-  if (path.endsWith('.mp4') || path.endsWith('.webm') || path.endsWith('.ogg') || path.endsWith('.ogv')) {
+  if (
+    path.endsWith('.mp4') ||
+    path.endsWith('.webm') ||
+    path.endsWith('.ogg') ||
+    path.endsWith('.ogv') ||
+    path.endsWith('.mov') ||
+    path.endsWith('.m4v') ||
+    path.endsWith('.mkv')
+  ) {
     let format = 'mp4';
     if (path.endsWith('.webm')) format = 'webm';
     if (path.endsWith('.ogg') || path.endsWith('.ogv')) format = 'ogg';
+    if (path.endsWith('.mov')) format = 'mov';
+    if (path.endsWith('.mkv')) format = 'mkv';
 
     const filename = parsed.pathname.split('/').pop() || `Direct ${format.toUpperCase()} Video`;
     const cleanTitle = decodeURIComponent(filename).replace(/[-_]/g, ' ').replace(/\.\w+$/, '');
