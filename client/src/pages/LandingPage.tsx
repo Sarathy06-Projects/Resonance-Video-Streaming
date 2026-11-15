@@ -349,213 +349,252 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
         {/* HERO SECTION WITH SHADCN AURORA BACKGROUND                */}
         {/* ========================================================= */}
         <section className="relative overflow-hidden border-b border-white/[0.06]">
-          <AuroraBackground className="pt-12 pb-20 sm:pt-16 sm:pb-24">
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-              {/* Eyebrow Micro-Badge */}
-          <motion.div
-            initial={shouldReduceMotion ? undefined : { opacity: 0, y: 14 }}
-            animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-[11px] font-medium text-white/70 tracking-wide mb-6"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Universal Playback Engine & Realtime Calling</span>
-          </motion.div>
+          <AuroraBackground className="pt-8 pb-16 sm:pt-12 sm:pb-20 lg:py-16 xl:py-20">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 xl:gap-14 items-center">
+                {/* Left Column: Narrative, Headline, Trust Pillars & Platform Badges */}
+                <div className="lg:col-span-7 text-left space-y-5 sm:space-y-6">
+                  {/* Eyebrow Micro-Badge */}
+                  <motion.div
+                    initial={shouldReduceMotion ? undefined : { opacity: 0, y: 14 }}
+                    animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-[11px] font-medium text-white/70 tracking-wide"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Universal Playback Engine & Realtime Calling</span>
+                  </motion.div>
 
-          {/* Main Statement Headline */}
-          <motion.h1
-            initial={shouldReduceMotion ? undefined : { opacity: 0, y: 20 }}
-            animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.08 }}
-            className="text-4xl sm:text-6xl lg:text-[4.75rem] font-medium tracking-[-0.045em] leading-[1.04] text-white max-w-4xl mx-auto"
-          >
-            Your place to spend time together, even when you&apos;re apart.
-          </motion.h1>
+                  {/* Main Statement Headline */}
+                  <motion.h1
+                    initial={shouldReduceMotion ? undefined : { opacity: 0, y: 20 }}
+                    animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                    transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.08 }}
+                    className="text-3xl sm:text-5xl lg:text-[2.85rem] xl:text-[3.5rem] font-medium tracking-[-0.04em] leading-[1.08] text-white"
+                  >
+                    Your place to spend time together, even when you&apos;re apart.
+                  </motion.h1>
 
-          {/* Subtitle */}
-          <motion.p
-            initial={shouldReduceMotion ? undefined : { opacity: 0, y: 16 }}
-            animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.16 }}
-            className="mt-6 text-base sm:text-lg text-white/55 max-w-2xl mx-auto font-normal leading-relaxed"
-          >
-            From random discoveries to unforgettable movie nights, bring your favorite people together around any video in synchronized real-time.
-          </motion.p>
+                  {/* Subtitle */}
+                  <motion.p
+                    initial={shouldReduceMotion ? undefined : { opacity: 0, y: 16 }}
+                    animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+                    transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.16 }}
+                    className="text-sm sm:text-base text-white/55 max-w-xl font-normal leading-relaxed"
+                  >
+                    From random discoveries to unforgettable movie nights, bring your favorite people together around any video in synchronized real-time.
+                  </motion.p>
 
-          {/* ========================================================= */}
-          {/* ROOM CREATOR INTERFACE (Authentic Product Entry)         */}
-          {/* ========================================================= */}
-          <motion.div
-            id="room-creator"
-            initial={shouldReduceMotion ? undefined : { opacity: 0, y: 24, scale: 0.98 }}
-            animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.22 }}
-            className="mt-10 max-w-xl mx-auto"
-          >
-            <div className="rounded-2xl border border-white/[0.08] bg-[#0c0e14]/90 p-6 sm:p-7 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl text-left">
-              <form onSubmit={handleCreateRoom} className="space-y-4">
-                {/* 1. Video URL Input with Auto-Detected Provider Pill */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
-                      Video Link
-                    </label>
-                    {activeMeta && (
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-400/20 text-indigo-300">
-                        {activeMeta.name} Detected
-                      </span>
-                    )}
+                  {/* Trust Highlights */}
+                  <div className="pt-1 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-white/50">
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Zero software installs</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Sub-second playback lock</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-violet-400" />
+                      <span>Free & instant join</span>
+                    </span>
                   </div>
-                  <div className="relative flex items-center">
-                    <input
-                      type="text"
-                      value={videoUrl}
-                      onChange={(e) => setVideoUrl(e.target.value)}
-                      placeholder="Paste YouTube, MP4, HLS, Vimeo, Google Drive, Twitch..."
-                      className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-4 py-2.5 text-xs text-white placeholder-white/30 outline-none pr-9 transition-colors"
-                    />
-                    <Link2 className="w-3.5 h-3.5 text-white/30 absolute right-3.5 pointer-events-none" />
+
+                  {/* Supported Platforms with Brand Logos */}
+                  <div className="pt-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40 mb-2.5">
+                      Supported Streaming Sources
+                    </p>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {supportedPlatforms.map((p) => (
+                        <div
+                          key={p.name}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.07] hover:border-white/[0.14] transition-all shadow-sm select-none"
+                        >
+                          {p.icon}
+                          <span className="font-medium text-white/75 text-[11px] sm:text-xs tracking-tight">
+                            {p.name}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                {/* Live Video Preview Card */}
-                {previewInfo && (
-                  <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center gap-3">
-                    <img
-                      src={previewInfo.thumbnailUrl}
-                      alt={previewInfo.title}
-                      className="w-16 h-10 object-cover rounded-lg bg-black flex-shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-white truncate">
-                        {previewInfo.title}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-white/40">
-                        <span>{previewInfo.authorName || 'Verified Video'}</span>
-                        <span>•</span>
-                        <span className="text-emerald-400 flex items-center gap-0.5">
-                          <CheckCircle2 className="w-2.5 h-2.5" /> Synchronizable
+                {/* Right Column: Room Creator Interface (Interactive Card) */}
+                <motion.div
+                  id="room-creator"
+                  initial={shouldReduceMotion ? undefined : { opacity: 0, y: 24, scale: 0.98 }}
+                  animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
+                  className="lg:col-span-5 w-full"
+                >
+                  <div className="rounded-2xl border border-white/[0.09] bg-[#0c0e14]/90 p-5 sm:p-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85)] backdrop-blur-2xl text-left">
+                    {/* Header of Card */}
+                    <div className="flex items-center justify-between pb-3 mb-4 border-b border-white/[0.06]">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-md bg-white/10 flex items-center justify-center text-white">
+                          <Play className="w-3 h-3 fill-white ml-0.2" />
+                        </div>
+                        <span className="text-xs font-semibold text-white tracking-tight">
+                          Create Watch Room
                         </span>
                       </div>
+                      <span className="text-[10px] text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-2 py-0.5 rounded-full font-medium">
+                        Instant Setup
+                      </span>
                     </div>
-                  </div>
-                )}
 
-                {/* 2. Display Name Input */}
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-2">
-                    Your Name
-                  </label>
-                  <input
-                    type="text"
-                    value={hostName}
-                    onChange={(e) => setHostName(e.target.value)}
-                    placeholder="Alex (Host)"
-                    maxLength={30}
-                    className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-4 py-2.5 text-xs text-white placeholder-white/30 outline-none transition-colors"
-                  />
-                </div>
+                    <form onSubmit={handleCreateRoom} className="space-y-3.5">
+                      {/* 1. Video URL Input with Auto-Detected Provider Pill */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
+                            Video Link
+                          </label>
+                          {activeMeta && (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-400/20 text-indigo-300">
+                              {activeMeta.name} Detected
+                            </span>
+                          )}
+                        </div>
+                        <div className="relative flex items-center">
+                          <input
+                            type="text"
+                            value={videoUrl}
+                            onChange={(e) => setVideoUrl(e.target.value)}
+                            placeholder="Paste YouTube, MP4, HLS, Vimeo, Google Drive..."
+                            className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2.5 text-xs text-white placeholder-white/30 outline-none pr-9 transition-colors"
+                          />
+                          <Link2 className="w-3.5 h-3.5 text-white/30 absolute right-3 pointer-events-none" />
+                        </div>
+                      </div>
 
-                {/* 3. Password Toggle Switch */}
-                <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
-                        isPrivate
-                          ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
-                          : 'bg-white/[0.04] text-white/40 border border-white/[0.06]'
-                      }`}
-                    >
-                      <Lock className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-white/90">Require room password</p>
-                      <p className="text-[10px] text-white/40 truncate">
-                        {isPrivate ? 'Only people with the passcode can enter' : 'Anyone with the link can join freely'}
-                      </p>
-                    </div>
-                  </div>
+                      {/* Live Video Preview Card */}
+                      {previewInfo && (
+                        <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center gap-3">
+                          <img
+                            src={previewInfo.thumbnailUrl}
+                            alt={previewInfo.title}
+                            className="w-14 h-9 object-cover rounded-lg bg-black flex-shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium text-white truncate">
+                              {previewInfo.title}
+                            </p>
+                            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-white/40">
+                              <span className="truncate">{previewInfo.authorName || 'Video Verified'}</span>
+                              <span>•</span>
+                              <span className="text-emerald-400 flex items-center gap-0.5 flex-shrink-0">
+                                <CheckCircle2 className="w-2.5 h-2.5" /> Synced
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
-                  {/* Apple-style Toggle Switch */}
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={isPrivate}
-                    onClick={() => {
-                      setIsPrivate(!isPrivate);
-                      if (isPrivate) setPasscode('');
-                    }}
-                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      isPrivate ? 'bg-white' : 'bg-white/15 hover:bg-white/20'
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full shadow-md ring-0 transition duration-200 ease-in-out ${
-                        isPrivate ? 'translate-x-4 bg-black' : 'translate-x-0 bg-white/70'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {/* Passcode Input Field (Smoothly Revealed When Toggle Is Active) */}
-                <AnimatePresence>
-                  {isPrivate && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.2, ease: 'easeOut' }}
-                      className="overflow-hidden"
-                    >
-                      <div className="pt-0.5">
-                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-2">
-                          Room Passcode
+                      {/* 2. Display Name Input */}
+                      <div>
+                        <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-1.5">
+                          Your Name
                         </label>
                         <input
                           type="text"
-                          value={passcode}
-                          onChange={(e) => setPasscode(e.target.value)}
-                          placeholder="Enter room passcode (e.g. watch123)"
-                          autoFocus
-                          className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-4 py-2.5 text-xs text-white placeholder-white/30 outline-none transition-colors"
+                          value={hostName}
+                          onChange={(e) => setHostName(e.target.value)}
+                          placeholder="Alex (Host)"
+                          maxLength={30}
+                          className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2 text-xs text-white placeholder-white/30 outline-none transition-colors"
                         />
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
 
-                {error && <p className="text-[11px] text-rose-400">{error}</p>}
+                      {/* 3. Password Toggle Switch */}
+                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isPrivate
+                                ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
+                                : 'bg-white/[0.04] text-white/40 border border-white/[0.06]'
+                            }`}
+                          >
+                            <Lock className="w-3 h-3" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-white/90">Require room password</p>
+                            <p className="text-[10px] text-white/40 truncate">
+                              {isPrivate ? 'Only users with passcode can enter' : 'Open to anyone with link'}
+                            </p>
+                          </div>
+                        </div>
 
-                {/* Primary Launch Action */}
-                <button
-                  type="submit"
-                  disabled={isCreating || isValidating}
-                  className="w-full py-3.5 rounded-xl bg-white hover:bg-white/90 text-black font-semibold text-xs tracking-tight transition-all hover:scale-[1.008] active:scale-[0.99] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg cursor-pointer mt-1"
-                >
-                  <Play className="w-3.5 h-3.5 fill-black" />
-                  <span>{isCreating ? 'Creating Watch Room...' : 'Start a room with someone'}</span>
-                </button>
-              </form>
+                        {/* Toggle Button */}
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={isPrivate}
+                          onClick={() => {
+                            setIsPrivate(!isPrivate);
+                            if (isPrivate) setPasscode('');
+                          }}
+                          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            isPrivate ? 'bg-white' : 'bg-white/15 hover:bg-white/20'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full shadow-md ring-0 transition duration-200 ease-in-out ${
+                              isPrivate ? 'translate-x-4 bg-black' : 'translate-x-0 bg-white/70'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Passcode Input Field (Revealed when toggle is active) */}
+                      <AnimatePresence>
+                        {isPrivate && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="overflow-hidden"
+                          >
+                            <div className="pt-0.5">
+                              <label className="block text-[11px] font-semibold uppercase tracking-wider text-white/50 mb-1.5">
+                                Room Passcode
+                              </label>
+                              <input
+                                type="text"
+                                value={passcode}
+                                onChange={(e) => setPasscode(e.target.value)}
+                                placeholder="Enter passcode..."
+                                autoFocus
+                                className="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-white/20 px-3.5 py-2 text-xs text-white placeholder-white/30 outline-none transition-colors"
+                              />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      {error && <p className="text-[11px] text-rose-400">{error}</p>}
+
+                      {/* Primary Launch Action */}
+                      <button
+                        type="submit"
+                        disabled={isCreating || isValidating}
+                        className="w-full py-3 rounded-xl bg-white hover:bg-white/90 text-black font-semibold text-xs tracking-tight transition-all hover:scale-[1.008] active:scale-[0.99] disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg cursor-pointer mt-1"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-black" />
+                        <span>{isCreating ? 'Creating Watch Room...' : 'Start a room with someone'}</span>
+                      </button>
+                    </form>
+                  </div>
+                </motion.div>
+              </div>
             </div>
-
-            {/* Supported Platforms with Brand Logos */}
-            <div className="mt-7 flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 text-xs">
-              {supportedPlatforms.map((p) => (
-                <div
-                  key={p.name}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.07] hover:border-white/[0.14] transition-all shadow-sm select-none"
-                >
-                  {p.icon}
-                  <span className="font-medium text-white/75 text-[11px] sm:text-xs tracking-tight">
-                    {p.name}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-      </AuroraBackground>
-    </section>
+          </AuroraBackground>
+        </section>
 
         {/* ========================================================= */}
         {/* 03. PRODUCT SHOWCASE (Being apart doesn't mean missing out) */}
