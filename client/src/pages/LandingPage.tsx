@@ -16,7 +16,6 @@ import {
   Database,
   Radio,
 } from 'lucide-react';
-import GradientASCII from '../components/GradientASCII';
 import { api } from '../services/api';
 import { detectProviderQuick, PROVIDER_META, COMPATIBILITY_META } from '../utils/resolver';
 
@@ -371,26 +370,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
       <main id="top" className="relative z-10">
         {/* Hero Section */}
         <section className="relative overflow-hidden px-4 pb-16 pt-10 sm:px-6 lg:px-8 lg:pb-24 lg:pt-16">
-          <div className="pointer-events-none absolute inset-0 opacity-95">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(118,90,255,0.18),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.12),transparent_28%)]" />
-            <div className="absolute inset-x-0 top-0 mx-auto h-[34rem] w-full max-w-6xl">
-              <GradientASCII
-                colors={['#7c3aed', '#60a5fa', '#dbeafe', '#f5f3ff']}
-                shape="horizon"
-                cellSize={16}
-                density={0.82}
-                glyphOpacity={0.78}
-                gradientOpacity={1}
-                glow={0.85}
-                softness={0.52}
-                flow={0.82}
-                speed={0.72}
-                grain={0.08}
-                scrambleRadius={0.2}
-                className="hero-gradient-ascii"
-                style={{ borderRadius: '1.75rem' }}
-              />
-            </div>
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(118,90,255,0.15),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.08),transparent_35%)]" />
           </div>
 
           <div className="relative z-10 mx-auto max-w-7xl">
