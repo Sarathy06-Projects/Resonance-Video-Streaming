@@ -250,59 +250,90 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[450px] bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,rgba(99,102,241,0.12),transparent_70%)] opacity-80" />
       </div>
 
-      {/* Top Header Navigation — Apple Floating Island */}
-      <header className="fixed top-3.5 sm:top-5 inset-x-0 z-50 flex justify-center px-4 pointer-events-none">
+      {/* ========================================================= */}
+      {/* APPLE-INSPIRED FLOATING NAVIGATION                       */}
+      {/* ========================================================= */}
+      <header
+        role="banner"
+        className="fixed top-5 sm:top-6 inset-x-0 z-50 flex justify-center px-4 sm:px-6 pointer-events-none"
+      >
         <motion.div
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
+          initial={shouldReduceMotion ? false : { y: -16, opacity: 0 }}
+          animate={shouldReduceMotion ? undefined : { y: 0, opacity: 1 }}
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="pointer-events-auto w-full max-w-fit md:max-w-3xl rounded-full border border-white/[0.14] bg-[#0c0e14]/80 backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.65),inset_0_1px_1px_rgba(255,255,255,0.18)] px-3.5 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between gap-4 sm:gap-7 transition-all duration-200"
+          className={`pointer-events-auto w-full max-w-fit md:min-w-[620px] lg:min-w-[680px] max-w-3xl h-12 rounded-full sm:rounded-[22px] border transition-all duration-300 ease-out px-3.5 sm:px-4.5 flex items-center justify-between gap-4 select-none ${
+            scrolled
+              ? 'bg-[#0a0c10]/85 border-white/[0.12] backdrop-blur-2xl shadow-[0_20px_40px_-8px_rgba(0,0,0,0.7),inset_0_1px_0_0_rgba(255,255,255,0.15)]'
+              : 'bg-[#0e1015]/70 border-white/[0.08] backdrop-blur-xl shadow-[0_12px_32px_-6px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.1)]'
+          }`}
         >
-          {/* Brand Mark */}
-          <a
-            href="#top"
-            className="flex items-center gap-2.5 text-[13px] sm:text-sm font-semibold tracking-tight text-white group select-none pl-1"
-          >
-            <div className="w-6 h-6 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white shadow-sm group-hover:bg-white/20 transition-all">
-              <Play className="w-2.5 h-2.5 fill-white ml-0.5" />
-            </div>
-            <span className="tracking-[-0.03em]">resonance</span>
-          </a>
+          {/* 1. Left: Resonance Logo & Wordmark */}
+          <div className="flex items-center min-w-[120px] sm:min-w-[130px]">
+            <a
+              href="#top"
+              className="flex items-center gap-2 group outline-none focus-visible:ring-1 focus-visible:ring-white/40 rounded-full"
+              aria-label="Resonance Home"
+            >
+              <div className="w-5.5 h-5.5 rounded-[7px] bg-white/[0.08] border border-white/[0.12] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2)] flex items-center justify-center transition-colors group-hover:bg-white/[0.12]">
+                <Play className="w-2.5 h-2.5 fill-white text-white ml-0.5" />
+              </div>
+              <span className="text-[13.5px] sm:text-[14px] font-medium tracking-[-0.025em] text-white">
+                resonance
+              </span>
+            </a>
+          </div>
 
-          {/* Desktop Nav Links */}
-          <nav className="hidden md:flex items-center gap-1 text-xs font-medium text-white/60">
+          {/* 2. Center: Centered Navigation Links */}
+          <nav
+            role="navigation"
+            aria-label="Main Navigation"
+            className="hidden md:flex items-center justify-center gap-1 sm:gap-1.5"
+          >
             {navItems.map((item) => (
               <a
                 key={item.label}
                 href={item.href}
-                className="px-3 py-1.5 rounded-full hover:text-white hover:bg-white/[0.06] transition-all"
+                className="px-3 py-1.5 rounded-lg text-[13px] font-medium text-white/60 hover:text-white transition-colors duration-200 outline-none focus-visible:ring-1 focus-visible:ring-white/40"
               >
                 {item.label}
               </a>
             ))}
           </nav>
 
-          {/* Action Button & Mobile Toggle */}
-          <div className="flex items-center gap-2">
+          {/* 3. Right: Primary Start Room CTA & Mobile Menu Trigger */}
+          <div className="flex items-center justify-end min-w-[120px] sm:min-w-[130px] gap-2">
             <button
               onClick={scrollToCreator}
-              className="text-xs font-semibold bg-white text-black hover:bg-white/90 px-3.5 sm:px-4 py-1.5 rounded-full transition-all hover:scale-[1.02] active:scale-[0.98] shadow-[0_2px_8px_rgba(255,255,255,0.2)] flex items-center gap-1.5 cursor-pointer"
+              className="group h-7.5 px-3.5 sm:px-4 rounded-full bg-[#f4f4f6] hover:bg-white text-[#0a0a0c] text-[12px] sm:text-[12.5px] font-medium tracking-tight flex items-center gap-1.5 shadow-[0_1px_3px_rgba(0,0,0,0.3),inset_0_1px_0_0_rgba(255,255,255,0.5)] transition-all duration-200 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               <span>Start room</span>
-              <ArrowRight className="w-3 h-3" />
+              <ArrowRight className="w-3 h-3 text-[#0a0a0c]/70 transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
             </button>
 
-            {/* Mobile Menu Toggle Button */}
+            {/* Mobile Menu Button */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-1.5 rounded-full text-white/70 hover:text-white hover:bg-white/10 md:hidden transition-colors"
-              aria-label="Toggle Navigation"
+              className="p-1.5 rounded-full text-white/70 hover:text-white hover:bg-white/[0.08] md:hidden transition-colors outline-none focus-visible:ring-1 focus-visible:ring-white/40"
+              aria-label="Toggle navigation menu"
+              aria-expanded={mobileMenuOpen}
             >
-              <div className="w-4 h-3 flex flex-col justify-between items-center">
-                <span className={`w-3.5 h-0.5 bg-current rounded transition-transform ${mobileMenuOpen ? 'rotate-45 translate-y-1.25' : ''}`} />
-                <span className={`w-3.5 h-0.5 bg-current rounded transition-opacity ${mobileMenuOpen ? 'opacity-0' : ''}`} />
-                <span className={`w-3.5 h-0.5 bg-current rounded transition-transform ${mobileMenuOpen ? '-rotate-45 -translate-y-1.25' : ''}`} />
+              <div className="w-4 h-3.5 flex flex-col justify-between items-center">
+                <span
+                  className={`w-3.5 h-0.5 bg-current rounded transition-all duration-200 ${
+                    mobileMenuOpen ? 'rotate-45 translate-y-1.5' : ''
+                  }`}
+                />
+                <span
+                  className={`w-3.5 h-0.5 bg-current rounded transition-opacity duration-150 ${
+                    mobileMenuOpen ? 'opacity-0' : ''
+                  }`}
+                />
+                <span
+                  className={`w-3.5 h-0.5 bg-current rounded transition-all duration-200 ${
+                    mobileMenuOpen ? '-rotate-45 -translate-y-1.5' : ''
+                  }`}
+                />
               </div>
             </button>
           </div>
@@ -313,13 +344,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.96 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="fixed top-18 inset-x-4 max-w-sm mx-auto z-50 md:hidden rounded-2xl border border-white/[0.12] bg-[#0c0e14]/95 backdrop-blur-2xl p-4 shadow-[0_20px_45px_rgba(0,0,0,0.8),inset_0_1px_1px_rgba(255,255,255,0.15)] overflow-hidden"
+            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }}
+            animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed top-18 sm:top-20 inset-x-4 max-w-xs sm:max-w-sm mx-auto z-50 md:hidden rounded-2xl border border-white/[0.1] bg-[#0c0d12]/92 backdrop-blur-2xl p-3.5 shadow-[0_20px_40px_-6px_rgba(0,0,0,0.8),inset_0_1px_0_0_rgba(255,255,255,0.12)] overflow-hidden"
           >
-            <div className="flex flex-col gap-1 text-sm">
+            <div className="flex flex-col gap-1 text-[13px]">
               {navItems.map((item) => (
                 <a
                   key={item.label}
@@ -336,7 +367,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
                     setMobileMenuOpen(false);
                     scrollToCreator();
                   }}
-                  className="w-full py-2.5 rounded-xl bg-white text-black font-semibold text-xs text-center shadow-md cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-[#f4f4f6] text-[#0a0a0c] font-medium text-xs text-center shadow-md cursor-pointer hover:bg-white transition-colors"
                 >
                   Start a room
                 </button>
@@ -601,7 +632,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onRoomCreated }) => {
         {/* ========================================================= */}
         {/* 03. PRODUCT SHOWCASE (Being apart doesn't mean missing out) */}
         {/* ========================================================= */}
-        <section id="showcase" className="px-4 py-24 sm:px-6 lg:px-8 border-t border-white/[0.06]">
+        <section id="moments" className="px-4 py-24 sm:px-6 lg:px-8 border-t border-white/[0.06]">
           <div className="max-w-6xl mx-auto">
             <div className="text-center max-w-2xl mx-auto mb-16">
               <h2 className="text-3xl sm:text-4xl font-medium tracking-[-0.04em] text-white">
