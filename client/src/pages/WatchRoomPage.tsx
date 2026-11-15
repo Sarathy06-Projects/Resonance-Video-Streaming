@@ -432,6 +432,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
                 messages={chatMessages}
                 currentUserId={currentUserId}
                 connectionStatus={connectionStatus}
+                reactions={reactions}
                 onSendMessage={(text) => emitChatMessage(text)}
                 onSendReaction={(emoji, type) => emitReaction(emoji, type)}
                 onRetryMessage={(msg) => emitRetryMessage(msg)}

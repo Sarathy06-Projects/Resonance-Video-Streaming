@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { UniversalPlayerProps, PlayerAdapter, PlaybackCapabilities, CompatibilityStatus } from './types';
 import { detectProviderQuick, PROVIDER_META, VideoProviderType } from '../utils/resolver';
-import { ReactionsOverlay, ReactionBar } from '../components/ReactionsOverlay';
+// Removed floating ReactionsOverlay and ReactionBar from video player (reactions belong to chat only)
 import { YouTubeAdapter } from './YouTubeAdapter';
 import { Html5Adapter } from './Html5Adapter';
 import { VimeoAdapter } from './VimeoAdapter';
@@ -563,13 +563,7 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
         </div>
       )}
 
-      {/* Floating Live Reactions Over Video */}
-      <ReactionsOverlay reactions={reactions} />
 
-      {/* Bottom Floating Reactions Dock (Unobtrusive) */}
-      <div className="absolute bottom-14 right-4 sm:right-6 z-20 pointer-events-auto">
-        <ReactionBar onTriggerReaction={onTriggerReaction} />
-      </div>
 
       {/* Video Player Controls Bar */}
       <div

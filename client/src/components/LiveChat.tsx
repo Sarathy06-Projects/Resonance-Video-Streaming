@@ -11,12 +11,14 @@ import {
   CheckCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChatMessage } from '../types';
+import { ChatMessage, Reaction } from '../types';
+import { ReactionsOverlay } from './ReactionsOverlay';
 
 interface LiveChatProps {
   messages: ChatMessage[];
   currentUserId: string;
   connectionStatus?: 'connected' | 'connecting' | 'reconnecting' | 'disconnected' | 'kicked';
+  reactions?: Reaction[];
   onSendMessage: (text: string) => Promise<boolean | void>;
   onSendReaction: (emoji: string, type: string) => void;
   onRetryMessage?: (msg: ChatMessage) => Promise<boolean | void>;
@@ -26,6 +28,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
   messages,
   currentUserId,
   connectionStatus = 'connected',
+  reactions = [],
   onSendMessage,
   onSendReaction,
   onRetryMessage,
@@ -93,12 +96,15 @@ export const LiveChat: React.FC<LiveChatProps> = ({
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const quickReactions = ['❤️', '🔥', '😂', '👏', '🎉', '🍿'];
+  const quickReactions = ['❤️', '🔥', '😂', '🎉', '👏', '🍿'];
 
   return (
     <div className="flex flex-col h-full bg-[#0a0c10] text-white">
       {/* Messages Feed */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-none">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 scrollbar-none relative">
+        {/* Floating Reactions Overlay inside Chat */}
+        <ReactionsOverlay reactions={reactions} compact />
+
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 select-none">
             <div className="w-9 h-9 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-white/40 mb-3">
@@ -177,15 +183,15 @@ export const LiveChat: React.FC<LiveChatProps> = ({
       {/* Composer Section */}
       <div className="p-3 border-t border-white/[0.06] bg-[#0c0e14]">
         {/* Quick Reactions Bar */}
-        <div className="flex items-center justify-between pb-2 px-1">
+        <div className="flex items-center justify-between pb-2.5 px-0.5">
           <div className="flex items-center gap-1.5">
             {quickReactions.map((emoji) => (
               <button
                 key={emoji}
                 type="button"
                 onClick={() => onSendReaction(emoji, 'emoji')}
-                className="w-7 h-7 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-sm transition-transform hover:scale-115 active:scale-95"
-                title={`Send ${emoji}`}
+                className="w-7.5 h-7.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] active:bg-white/[0.12] border border-white/[0.06] hover:border-white/[0.14] flex items-center justify-center text-sm transition-all hover:scale-110 active:scale-95 select-none shadow-sm"
+                title={`React ${emoji}`}
               >
                 {emoji}
               </button>
@@ -194,7 +200,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
 
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className="text-white/30 hover:text-white/70 p-1 rounded transition-colors"
+            className="text-white/30 hover:text-white/70 p-1.5 rounded-lg hover:bg-white/[0.04] transition-colors"
             title={soundEnabled ? 'Mute notification sound' : 'Unmute notification sound'}
           >
             {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}

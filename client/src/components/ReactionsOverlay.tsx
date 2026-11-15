@@ -3,38 +3,39 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Reaction } from '../types';
 
 interface ReactionsOverlayProps {
-  reactions: Reaction[];
+  reactions?: Reaction[];
+  compact?: boolean;
   onTriggerReaction?: (emoji: string, type: string) => void;
 }
 
 interface FloatingEmoji {
   id: string;
   emoji: string;
-  left: number; // percentage 50% - 90% (stays on right half so it never blocks center video content)
+  left: number;
   senderName: string;
 }
 
-export const ReactionsOverlay: React.FC<ReactionsOverlayProps> = ({ reactions }) => {
+export const ReactionsOverlay: React.FC<ReactionsOverlayProps> = ({ reactions = [], compact = false }) => {
   const [floatingList, setFloatingList] = useState<FloatingEmoji[]>([]);
 
   useEffect(() => {
-    if (reactions.length === 0) return;
+    if (!reactions || reactions.length === 0) return;
     const latest = reactions[reactions.length - 1];
     const newEmoji: FloatingEmoji = {
       id: latest.id || Math.random().toString(),
       emoji: latest.emoji,
-      left: 60 + Math.random() * 28, // 60% to 88% on the right side
+      left: compact ? (15 + Math.random() * 65) : (60 + Math.random() * 28),
       senderName: latest.senderName,
     };
 
-    setFloatingList((prev) => [...prev.slice(-12), newEmoji]);
+    setFloatingList((prev) => [...prev.slice(-10), newEmoji]);
 
     const timer = setTimeout(() => {
       setFloatingList((prev) => prev.filter((item) => item.id !== newEmoji.id));
-    }, 2800);
+    }, 2400);
 
     return () => clearTimeout(timer);
-  }, [reactions]);
+  }, [reactions, compact]);
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden z-20">
@@ -42,18 +43,18 @@ export const ReactionsOverlay: React.FC<ReactionsOverlayProps> = ({ reactions })
         {floatingList.map((item) => (
           <motion.div
             key={item.id}
-            initial={{ opacity: 0, scale: 0.6, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: -160 }}
-            exit={{ opacity: 0, scale: 0.8, y: -240 }}
-            transition={{ duration: 2.6, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute bottom-20 flex flex-col items-center pointer-events-none"
+            initial={{ opacity: 0, scale: 0.6, y: 15 }}
+            animate={{ opacity: 1, scale: 1, y: compact ? -130 : -160 }}
+            exit={{ opacity: 0, scale: 0.8, y: compact ? -180 : -240 }}
+            transition={{ duration: 2.2, ease: [0.16, 1, 0.3, 1] }}
+            className={`absolute ${compact ? 'bottom-2' : 'bottom-20'} flex flex-col items-center pointer-events-none`}
             style={{ left: `${item.left}%` }}
           >
-            <span className="text-2xl sm:text-3xl select-none filter drop-shadow-md">
+            <span className={`${compact ? 'text-2xl' : 'text-2xl sm:text-3xl'} select-none filter drop-shadow-md`}>
               {item.emoji}
             </span>
             {item.senderName && (
-              <span className="text-[10px] text-white/75 bg-black/60 px-2 py-0.5 rounded-full backdrop-blur-md mt-1 whitespace-nowrap border border-white/[0.08] font-medium tracking-tight">
+              <span className="text-[10px] text-white/80 bg-black/70 px-2 py-0.5 rounded-full backdrop-blur-md mt-1 whitespace-nowrap border border-white/[0.1] font-medium tracking-tight">
                 {item.senderName}
               </span>
             )}
