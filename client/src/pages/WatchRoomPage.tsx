@@ -481,9 +481,9 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
               <VideoQueue
                 queue={queue}
                 isHost={isHost}
-                onAddToQueue={(vId, title, thumb) => emitAddToQueue(vId, title, thumb)}
+                onAddToQueue={(vId, title, thumb, provider) => emitAddToQueue(vId, title, thumb, provider)}
                 onRemoveFromQueue={(id) => emitRemoveFromQueue(id)}
-                onPlayNext={() => emitPlayNextQueue()}
+                onPlayNext={(targetId) => emitPlayNextQueue(targetId)}
               />
             )}
           </div>

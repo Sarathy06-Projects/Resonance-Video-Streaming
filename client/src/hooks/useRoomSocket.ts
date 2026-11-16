@@ -17,7 +17,7 @@ interface UseRoomSocketProps {
   onPlaybackPause?: (position: number, updatedAt: number) => void;
   onPlaybackSeek?: (position: number, status: string) => void;
   onPlaybackRate?: (rate: number, position: number) => void;
-  onVideoChange?: (videoId: string, title?: string) => void;
+  onVideoChange?: (videoId: string, title?: string, provider?: string) => void;
   onNewChat?: (message: ChatMessage) => void;
   onNewReaction?: (reaction: Reaction) => void;
   onKicked?: (message: string) => void;
@@ -243,6 +243,25 @@ export function useRoomSocket({
                 })
               );
             }
+          } else if (sig.type === 'queue:sync' && sig.payload?.queue) {
+            setQueue(sig.payload.queue);
+          } else if (sig.type === 'video:change' && sig.payload) {
+            if (sig.payload.videoId) {
+              setMetadata((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      videoId: sig.payload.videoId,
+                      title: sig.payload.title || prev.title,
+                      videoProvider: sig.payload.provider || prev.videoProvider,
+                    }
+                  : prev
+              );
+            }
+            if (sig.payload.playback) {
+              setPlaybackState(sig.payload.playback);
+            }
+            callbacksRef.current.onVideoChange?.(sig.payload.videoId, sig.payload.title, sig.payload.provider);
           } else if (sig.payload?.isP2PStream || sig.payload?.p2pStream) {
             callbacksRef.current.onP2PStreamSignal?.(sig.senderId, sig.payload);
           } else {
@@ -807,6 +826,25 @@ export function useRoomSocket({
             playbackRate: payload.playbackRate ?? 1,
           }),
         }).catch(() => {});
+      } else if (type === 'queue:add') {
+        api.addToQueue(roomId, token, {
+          videoId: payload.videoId,
+          title: payload.title,
+          thumbnailUrl: payload.thumbnailUrl,
+          provider: payload.provider,
+        }).then((res) => {
+          if (res?.queue) setQueue(res.queue);
+        }).catch(() => {});
+      } else if (type === 'queue:remove') {
+        api.removeFromQueue(roomId, token, payload.itemId).then((res) => {
+          if (res?.queue) setQueue(res.queue);
+        }).catch(() => {});
+      } else if (type === 'queue:next') {
+        api.playNextQueue(roomId, token, payload.targetItemId).then((res) => {
+          if (res?.playback) setPlaybackState(res.playback);
+          if (res?.queue) setQueue(res.queue);
+          if (res?.item) callbacksRef.current.onVideoChange?.(res.item.videoId, res.item.title, res.item.provider);
+        }).catch(() => {});
       }
     },
     [roomId, token]
@@ -986,12 +1024,39 @@ export function useRoomSocket({
     [send]
   );
   const emitAddToQueue = useCallback(
-    (videoId: string, title: string, thumbnailUrl: string) =>
-      send('queue:add', { videoId, title, thumbnailUrl }),
+    (videoId: string, title: string, thumbnailUrl: string, provider?: string) => {
+      const tempId = `temp_q_${Date.now()}`;
+      setQueue((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          roomId,
+          videoId,
+          title,
+          thumbnailUrl,
+          provider: provider || 'youtube',
+          addedBy: 'You',
+          addedAt: Date.now(),
+          position: prev.length + 1,
+        },
+      ]);
+      send('queue:add', { videoId, title, thumbnailUrl, provider });
+    },
+    [send, roomId]
+  );
+  const emitRemoveFromQueue = useCallback(
+    (itemId: string) => {
+      setQueue((prev) => prev.filter((q) => q.id !== itemId));
+      send('queue:remove', { itemId });
+    },
     [send]
   );
-  const emitRemoveFromQueue = useCallback((itemId: string) => send('queue:remove', { itemId }), [send]);
-  const emitPlayNextQueue = useCallback(() => send('queue:next', {}), [send]);
+  const emitPlayNextQueue = useCallback(
+    (targetItemId?: string) => {
+      send('queue:next', { targetItemId });
+    },
+    [send]
+  );
 
   // Video & Audio Call Emitters (Creator selects mode)
   const emitStartCall = useCallback(

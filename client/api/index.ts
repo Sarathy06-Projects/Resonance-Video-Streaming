@@ -1237,6 +1237,218 @@ routeBoth('post', '/rooms/:id/video', async (req: Request, res: Response) => {
   }
 });
 
+// Helper to map video_queue rows
+function mapQueueRow(q: any) {
+  return {
+    id: q.id,
+    roomId: q.room_id,
+    videoId: q.video_id,
+    provider: q.video_provider || 'youtube',
+    title: q.title,
+    thumbnailUrl: q.thumbnail_url,
+    addedBy: q.added_by,
+    addedAt: new Date(q.created_at).getTime(),
+    position: q.position,
+  };
+}
+
+// 10b. Add Item to Queue
+routeBoth('post', '/rooms/:id/queue', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, videoId, title, thumbnailUrl, provider, videoUrl } = req.body;
+
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session' });
+      return;
+    }
+
+    if (decoded.role !== 'host') {
+      res.status(403).json({ error: 'Only the host can add to the queue' });
+      return;
+    }
+
+    let finalVideoId = videoId;
+    let finalTitle = title;
+    let finalThumbnail = thumbnailUrl;
+    let finalProvider = provider || 'youtube';
+
+    // Resolve URL if full link provided
+    const inputUrl = videoUrl || (typeof videoId === 'string' && (videoId.includes('http') || videoId.includes('/')) ? videoId : '');
+    if (inputUrl) {
+      try {
+        const resolved = await resolveMediaUrl(inputUrl);
+        finalVideoId = resolved.videoId;
+        finalTitle = resolved.title || finalTitle;
+        finalThumbnail = resolved.thumbnailUrl || finalThumbnail;
+        finalProvider = resolved.provider || finalProvider;
+      } catch {}
+    }
+
+    if (!finalVideoId) {
+      res.status(400).json({ error: 'Valid video link or ID required' });
+      return;
+    }
+
+    const posRes = await query(
+      'SELECT COALESCE(MAX(position), 0) + 1 as next_pos FROM video_queue WHERE room_id = $1',
+      [id]
+    );
+    const nextPos = parseInt(posRes.rows[0]?.next_pos || '1', 10);
+    const itemId = generateUserId();
+
+    const insertRes = await query(
+      `INSERT INTO video_queue (id, room_id, video_id, title, thumbnail_url, added_by, position, video_provider, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+       RETURNING *`,
+      [
+        itemId,
+        id,
+        finalVideoId,
+        finalTitle || 'Queued Video',
+        finalThumbnail || `https://img.youtube.com/vi/${finalVideoId}/hqdefault.jpg`,
+        decoded.name || 'Host',
+        nextPos,
+        finalProvider,
+      ]
+    );
+
+    const qRes = await query(
+      'SELECT * FROM video_queue WHERE room_id = $1 ORDER BY position ASC, created_at ASC',
+      [id]
+    );
+    const updatedQueue = qRes.rows.map(mapQueueRow);
+
+    res.json({
+      success: true,
+      item: mapQueueRow(insertRes.rows[0]),
+      queue: updatedQueue,
+    });
+  } catch (err: any) {
+    console.error('[POST /api/rooms/:id/queue] Error:', err);
+    res.status(500).json({ error: 'Failed to add video to queue' });
+  }
+});
+
+// 10c. Remove Item from Queue
+routeBoth('post', '/rooms/:id/queue/remove', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, itemId } = req.body;
+
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session' });
+      return;
+    }
+
+    if (decoded.role !== 'host') {
+      res.status(403).json({ error: 'Only the host can manage the queue' });
+      return;
+    }
+
+    await query('DELETE FROM video_queue WHERE room_id = $1 AND id = $2', [id, itemId]);
+
+    const qRes = await query(
+      'SELECT * FROM video_queue WHERE room_id = $1 ORDER BY position ASC, created_at ASC',
+      [id]
+    );
+    const updatedQueue = qRes.rows.map(mapQueueRow);
+
+    res.json({ success: true, queue: updatedQueue });
+  } catch (err: any) {
+    console.error('[POST /api/rooms/:id/queue/remove] Error:', err);
+    res.status(500).json({ error: 'Failed to remove item from queue' });
+  }
+});
+
+// 10d. Play Next Item in Queue (or jump to specific targetItemId)
+routeBoth('post', '/rooms/:id/queue/next', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, targetItemId } = req.body;
+
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session' });
+      return;
+    }
+
+    if (decoded.role !== 'host') {
+      res.status(403).json({ error: 'Only the host can control queue playback' });
+      return;
+    }
+
+    let selectQuery = 'SELECT * FROM video_queue WHERE room_id = $1 ORDER BY position ASC, created_at ASC LIMIT 1';
+    let queryParams: any[] = [id];
+    if (targetItemId) {
+      selectQuery = 'SELECT * FROM video_queue WHERE room_id = $1 AND id = $2';
+      queryParams = [id, targetItemId];
+    }
+
+    const qRes = await query(selectQuery, queryParams);
+    if (qRes.rows.length === 0) {
+      res.status(404).json({ error: 'Queue is empty' });
+      return;
+    }
+
+    const nextItem = qRes.rows[0];
+    await query('DELETE FROM video_queue WHERE id = $1', [nextItem.id]);
+
+    const finalVideoId = nextItem.video_id;
+    const finalTitle = nextItem.title;
+    const finalProvider = nextItem.video_provider || 'youtube';
+
+    const newPlayback = {
+      videoId: finalVideoId,
+      provider: finalProvider,
+      status: 'playing',
+      position: 0,
+      updatedAt: Date.now(),
+      playbackRate: 1,
+    };
+
+    const isNowLocal = finalProvider === 'p2p_local' || finalProvider === 'local' || finalVideoId.startsWith('local://');
+    const newCapacity = isNowLocal ? 3 : 20;
+
+    await query(
+      'UPDATE rooms SET video_id = $1, title = $2, video_provider = $3, playback_state = $4, max_participants = $5 WHERE id = $6',
+      [finalVideoId, finalTitle || 'Watch Video', finalProvider, JSON.stringify(newPlayback), newCapacity, id]
+    );
+
+    const remRes = await query(
+      'SELECT * FROM video_queue WHERE room_id = $1 ORDER BY position ASC, created_at ASC',
+      [id]
+    );
+    const remainingQueue = remRes.rows.map(mapQueueRow);
+
+    res.json({
+      success: true,
+      item: mapQueueRow(nextItem),
+      playback: newPlayback,
+      queue: remainingQueue,
+    });
+  } catch (err: any) {
+    console.error('[POST /api/rooms/:id/queue/next] Error:', err);
+    res.status(500).json({ error: 'Failed to play next item from queue' });
+  }
+});
+
+// 10e. Get Queue
+routeBoth('get', '/rooms/:id/queue', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const qRes = await query(
+      'SELECT * FROM video_queue WHERE room_id = $1 ORDER BY position ASC, created_at ASC',
+      [id]
+    );
+    res.json({ success: true, queue: qRes.rows.map(mapQueueRow) });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to fetch queue' });
+  }
+});
+
 // 11. Send Chat Message
 routeBoth('post', '/rooms/:id/chat', async (req: Request, res: Response) => {
   try {
@@ -1687,16 +1899,7 @@ routeBoth('get', '/rooms/:id/poll', async (req: Request, res: Response) => {
       'SELECT * FROM video_queue WHERE room_id = $1 ORDER BY position ASC, created_at ASC',
       [id]
     );
-    const queue = qRes.rows.map((q) => ({
-      id: q.id,
-      roomId: q.room_id,
-      videoId: q.video_id,
-      title: q.title,
-      thumbnailUrl: q.thumbnail_url,
-      addedBy: q.added_by,
-      addedAt: new Date(q.created_at).getTime(),
-      position: q.position,
-    }));
+    const queue = qRes.rows.map(mapQueueRow);
 
     // Fetch and consume pending signals for this participant
     const sRes = await query(

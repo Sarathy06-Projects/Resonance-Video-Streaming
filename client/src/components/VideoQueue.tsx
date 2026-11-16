@@ -6,9 +6,9 @@ import { api } from '../services/api';
 interface VideoQueueProps {
   queue: QueueItem[];
   isHost: boolean;
-  onAddToQueue: (videoId: string, title: string, thumbnailUrl: string) => void;
+  onAddToQueue: (videoId: string, title: string, thumbnailUrl: string, provider?: string) => void;
   onRemoveFromQueue: (itemId: string) => void;
-  onPlayNext: () => void;
+  onPlayNext: (targetItemId?: string) => void;
 }
 
 export const VideoQueue: React.FC<VideoQueueProps> = ({
@@ -34,10 +34,13 @@ export const VideoQueue: React.FC<VideoQueueProps> = ({
       if (res.valid && res.videoId) {
         onAddToQueue(
           res.videoId,
-          res.info.title,
-          res.info.thumbnailUrl || `https://img.youtube.com/vi/${res.videoId}/hqdefault.jpg`
+          res.info?.title || res.title || 'Queued Video',
+          res.info?.thumbnailUrl || res.thumbnailUrl || `https://img.youtube.com/vi/${res.videoId}/hqdefault.jpg`,
+          res.provider || res.info?.provider || 'youtube'
         );
         setUrlInput('');
+      } else {
+        setError(res.error || 'Invalid video link');
       }
     } catch (err: any) {
       setError(err.message || 'Invalid video URL');
@@ -58,7 +61,7 @@ export const VideoQueue: React.FC<VideoQueueProps> = ({
         </div>
         {isHost && queue.length > 0 && (
           <button
-            onClick={onPlayNext}
+            onClick={() => onPlayNext()}
             className="flex items-center gap-1.5 text-xs text-black bg-white hover:bg-white/90 px-3 py-1.5 rounded-lg font-medium transition-colors"
           >
             <Play className="w-3 h-3 fill-current" />
@@ -135,13 +138,22 @@ export const VideoQueue: React.FC<VideoQueueProps> = ({
               </div>
 
               {isHost && (
-                <button
-                  onClick={() => onRemoveFromQueue(item.id)}
-                  className="p-1.5 rounded-md hover:bg-rose-500/20 text-white/30 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100"
-                  title="Remove from queue"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-0.5 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
+                  <button
+                    onClick={() => onPlayNext(item.id)}
+                    className="p-1.5 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors cursor-pointer"
+                    title="Play this video now"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                  </button>
+                  <button
+                    onClick={() => onRemoveFromQueue(item.id)}
+                    className="p-1.5 rounded-lg hover:bg-rose-500/20 text-white/40 hover:text-rose-400 transition-colors cursor-pointer"
+                    title="Remove from queue"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               )}
             </div>
           ))

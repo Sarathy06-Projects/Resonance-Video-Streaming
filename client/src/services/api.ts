@@ -145,4 +145,40 @@ export const api = {
     const res = await fetch('/api/rooms/curated/demos');
     return handleResponse(res, 'Failed to load curated video demos');
   },
+
+  async addToQueue(
+    roomId: string,
+    token: string,
+    item: { videoId: string; title: string; thumbnailUrl?: string; provider?: string; videoUrl?: string }
+  ) {
+    const res = await fetch(`/api/rooms/${roomId}/queue`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, ...item }),
+    });
+    return handleResponse(res, 'Failed to add video to queue');
+  },
+
+  async removeFromQueue(roomId: string, token: string, itemId: string) {
+    const res = await fetch(`/api/rooms/${roomId}/queue/remove`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, itemId }),
+    });
+    return handleResponse(res, 'Failed to remove video from queue');
+  },
+
+  async playNextQueue(roomId: string, token: string, targetItemId?: string) {
+    const res = await fetch(`/api/rooms/${roomId}/queue/next`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, targetItemId }),
+    });
+    return handleResponse(res, 'Failed to play next video in queue');
+  },
+
+  async getQueue(roomId: string) {
+    const res = await fetch(`/api/rooms/${roomId}/queue`);
+    return handleResponse(res, 'Failed to fetch queue');
+  },
 };
