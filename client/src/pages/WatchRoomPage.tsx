@@ -56,6 +56,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
   const [isRoomTerminated, setIsRoomTerminated] = useState(false);
   const [roomTerminationReason, setRoomTerminationReason] = useState('');
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const p2pSignalRef = useRef<((senderId: string, payload: any) => void) | null>(null);
   const p2pStateRef = useRef<((senderId: string, state: any) => void) | null>(null);
@@ -291,6 +292,16 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
+          {/* Toggle Chat / Theater Mode Button (Desktop) */}
+          <button
+            onClick={() => setIsSidebarOpen((prev) => !prev)}
+            className="hidden lg:inline-flex items-center gap-1.5 text-xs text-white/70 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] px-3 py-1.5 rounded-full transition-colors cursor-pointer"
+            title={isSidebarOpen ? 'Hide Chat (Theater Mode)' : 'Show Chat'}
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-white/60" />
+            <span>{isSidebarOpen ? 'Hide Chat' : 'Show Chat'}</span>
+          </button>
+
           {/* Change Video Button (Desktop Only) */}
           {isHost && (
             <button
@@ -354,9 +365,9 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
       {/* Main Experience: Video Canvas + Sidebar */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
         {/* Left Side: Video Canvas */}
-        <div className="w-full lg:flex-1 min-w-0 min-h-0 flex flex-col p-0 sm:p-3 lg:p-5 shrink-0 lg:overflow-y-auto">
+        <div className={`w-full ${isSidebarOpen ? 'lg:flex-1' : 'lg:w-full'} min-w-0 min-h-0 flex items-center justify-center p-0 sm:p-2 lg:p-4 shrink-0 lg:shrink overflow-hidden transition-all duration-200`}>
           {/* 16:9 Cinematic Video Player Container */}
-          <div className="w-full aspect-video sm:rounded-2xl overflow-hidden bg-black border-b sm:border border-white/[0.06] shadow-2xl relative shrink-0">
+          <div className="w-full max-w-[1600px] max-h-full aspect-video sm:rounded-2xl overflow-hidden bg-black border-b sm:border border-white/[0.06] shadow-2xl relative flex items-center justify-center">
             <VideoPlayer
               videoId={currentVideoId}
               provider={currentProvider}
@@ -390,13 +401,13 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
         </div>
 
         {/* Right Side: Integrated Sidebar */}
-        <div className="flex-1 min-h-0 w-full lg:w-[350px] xl:w-[380px] 2xl:w-[420px] flex flex-col lg:h-full lg:shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0a0c10]">
+        <div className={`${isSidebarOpen ? 'flex' : 'hidden lg:hidden'} flex-1 min-h-0 w-full lg:w-[280px] xl:w-[310px] 2xl:w-[340px] flex-col lg:h-full lg:shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0a0c10] transition-all duration-200`}>
           {/* Segmented Tab Switcher */}
-          <div className="p-3 border-b border-white/[0.06] shrink-0">
+          <div className="p-2 sm:p-2.5 border-b border-white/[0.06] shrink-0">
             <div className="grid grid-cols-3 bg-white/[0.03] p-1 rounded-xl border border-white/[0.06] text-xs">
               <button
                 onClick={() => setActiveTab('chat')}
-                className={`py-1.5 px-2 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
+                className={`py-1 px-1.5 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
                   activeTab === 'chat'
                     ? 'bg-white/10 text-white shadow-sm'
                     : 'text-white/50 hover:text-white/80'
@@ -411,7 +422,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
 
               <button
                 onClick={() => setActiveTab('participants')}
-                className={`py-1.5 px-2 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
+                className={`py-1 px-1.5 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
                   activeTab === 'participants'
                     ? 'bg-white/10 text-white shadow-sm'
                     : 'text-white/50 hover:text-white/80'
@@ -424,7 +435,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
 
               <button
                 onClick={() => setActiveTab('queue')}
-                className={`py-1.5 px-2 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
+                className={`py-1 px-1.5 rounded-lg font-medium transition-all flex items-center justify-center gap-1.5 ${
                   activeTab === 'queue'
                     ? 'bg-white/10 text-white shadow-sm'
                     : 'text-white/50 hover:text-white/80'
