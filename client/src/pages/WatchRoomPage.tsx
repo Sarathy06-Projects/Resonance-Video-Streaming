@@ -17,6 +17,7 @@ import {
   RotateCw,
   PhoneOff,
   AlertTriangle,
+  LogOut,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRoomSocket } from '../hooks/useRoomSocket';
@@ -201,18 +202,30 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     setTimeout(() => setCopiedRoomId(false), 2000);
   };
 
+  // Browser confirmation when tab is closed or navigated away
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
   const handleLeaveClick = () => {
-    if (isHost) {
-      setIsLeaveConfirmOpen(true);
-    } else {
-      emitLeaveRoom();
-      onLeaveRoom();
-    }
+    setIsLeaveConfirmOpen(true);
   };
 
   const handleConfirmHostLeave = () => {
     setIsLeaveConfirmOpen(false);
     emitTerminateRoom('The host has ended the room session.');
+    onLeaveRoom();
+  };
+
+  const handleConfirmGuestLeave = () => {
+    setIsLeaveConfirmOpen(false);
+    emitLeaveRoom();
     onLeaveRoom();
   };
 
@@ -500,28 +513,59 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
         onChangeVideo={(vId, title, prov) => emitVideoChange(vId, title, prov)}
       />
 
-      {/* Section 15: Host Voluntary Leave Confirmation Modal */}
+      {/* Leave / Terminate Room Confirmation Modal */}
       {isLeaveConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-          <div className="w-full max-w-sm rounded-2xl bg-[#0B0F17] border border-white/10 p-5 shadow-2xl">
-            <h3 className="text-base font-semibold text-white">End Room for Everyone?</h3>
-            <p className="mt-2 text-xs text-white/60 leading-relaxed">
-              As the host, leaving will terminate this room session for all participants. No one will be able to continue watching.
-            </p>
-            <div className="mt-5 flex items-center justify-end gap-2.5">
-              <button
-                onClick={() => setIsLeaveConfirmOpen(false)}
-                className="px-3 py-1.5 rounded-xl text-xs font-medium text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmHostLeave}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-white bg-rose-600 hover:bg-rose-500 transition-colors shadow-lg shadow-rose-600/20"
-              >
-                End Room & Leave
-              </button>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="w-full max-w-sm rounded-2xl bg-[#0c0e14] border border-white/10 p-5 sm:p-6 shadow-2xl text-center">
+            {isHost ? (
+              <>
+                <div className="mx-auto w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 mb-4 shadow-lg shadow-rose-500/10">
+                  <AlertTriangle className="w-6 h-6 text-rose-400" />
+                </div>
+                <h3 className="text-base font-semibold text-white tracking-tight">End Room for Everyone?</h3>
+                <p className="mt-2 text-xs text-white/60 leading-relaxed">
+                  As the host, leaving will <span className="text-rose-300 font-medium">terminate this room session</span> for all participants immediately. No one will be able to continue watching.
+                </p>
+                <div className="mt-6 flex flex-col sm:flex-row items-center gap-2.5">
+                  <button
+                    onClick={() => setIsLeaveConfirmOpen(false)}
+                    className="w-full sm:flex-1 py-2.5 px-3 rounded-xl text-xs font-medium text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmHostLeave}
+                    className="w-full sm:flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 active:bg-rose-700 transition-colors shadow-lg shadow-rose-600/30 cursor-pointer"
+                  >
+                    End & Terminate
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mx-auto w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/70 mb-4 shadow-lg">
+                  <LogOut className="w-6 h-6 text-white/80" />
+                </div>
+                <h3 className="text-base font-semibold text-white tracking-tight">Leave Watch Room?</h3>
+                <p className="mt-2 text-xs text-white/60 leading-relaxed">
+                  Are you sure you want to leave this watch party? You can re-join anytime using the room link.
+                </p>
+                <div className="mt-6 flex flex-col sm:flex-row items-center gap-2.5">
+                  <button
+                    onClick={() => setIsLeaveConfirmOpen(false)}
+                    className="w-full sm:flex-1 py-2.5 px-3 rounded-xl text-xs font-medium text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    Stay
+                  </button>
+                  <button
+                    onClick={handleConfirmGuestLeave}
+                    className="w-full sm:flex-1 py-2.5 px-3 rounded-xl text-xs font-semibold text-black bg-white hover:bg-white/90 active:bg-white/80 transition-colors shadow-lg cursor-pointer"
+                  >
+                    Leave Room
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
