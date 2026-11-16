@@ -112,9 +112,9 @@ router.post('/upgrade-room', async (req: Request, res: Response) => {
       [subId, decoded.userId]
     );
 
-    // Upgrade room max participants to 15
-    coordinator.metadata.maxParticipants = 15;
-    await query('UPDATE rooms SET max_participants = 15 WHERE id = $1', [roomId]);
+    // Upgrade room max participants to 50
+    coordinator.metadata.maxParticipants = 50;
+    await query('UPDATE rooms SET max_participants = 50 WHERE id = $1', [roomId]);
 
     coordinator.broadcast({
       id: nanoid(),

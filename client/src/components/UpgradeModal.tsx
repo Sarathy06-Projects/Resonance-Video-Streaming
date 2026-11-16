@@ -72,7 +72,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
             </div>
             <h3 className="text-base font-medium text-white mb-1">Upgraded to Premium</h3>
             <p className="text-xs text-white/50">
-              Your room now supports up to 15 participants with extended duration.
+              Your room now supports up to 50 participants with extended duration.
             </p>
           </div>
         ) : (
@@ -102,7 +102,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
             <div className="space-y-2.5 mb-5 text-xs text-white/70">
               <div className="flex items-center gap-2.5">
                 <Users className="w-3.5 h-3.5 text-white/50" />
-                <span>Up to 15 participants per room (vs 3 on Free)</span>
+                <span>Up to 50 participants per room (vs 20 on Free)</span>
               </div>
               <div className="flex items-center gap-2.5">
                 <Lock className="w-3.5 h-3.5 text-white/50" />

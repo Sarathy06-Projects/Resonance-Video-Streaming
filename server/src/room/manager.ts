@@ -21,6 +21,9 @@ class RoomManager {
     }
 
     const row = res.rows[0];
+    const isLocal = row.video_provider === 'p2p_local' || row.video_provider === 'local' || (row.video_id && row.video_id.startsWith('local://'));
+    const maxCapacity = row.max_participants || (isLocal ? 3 : 20);
+
     const metadata: RoomMetadata = {
       id: row.id,
       hostId: row.host_id,
@@ -30,7 +33,7 @@ class RoomManager {
       isPrivate: Boolean(row.is_private),
       passcode: row.passcode || undefined,
       isLocked: Boolean(row.is_locked),
-      maxParticipants: row.max_participants || 3,
+      maxParticipants: maxCapacity,
       theme: row.theme || 'obsidian',
       status: row.status || 'active',
       createdAt: row.created_at,
@@ -109,11 +112,14 @@ class RoomManager {
       [hostId, params.hostName.trim() || 'Host', true, getRandomColor()]
     );
 
+    const isLocalVideo = (provider as string) === 'p2p_local' || (provider as string) === 'local' || videoId.startsWith('local://');
+    const roomCapacity = isLocalVideo ? 3 : 20;
+
     // 2. Persist room in Neon DB
     await query(
       `INSERT INTO rooms (id, host_id, title, video_provider, video_id, is_private, passcode, is_locked, max_participants, theme, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false, 3, $8, 'active', NOW())`,
-      [roomId, hostId, title, provider, videoId, isPrivate, passcode, theme]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, 'active', NOW())`,
+      [roomId, hostId, title, provider, videoId, isPrivate, passcode, roomCapacity, theme]
     );
 
     const metadata: RoomMetadata = {
@@ -128,7 +134,7 @@ class RoomManager {
       isPrivate,
       passcode: passcode || undefined,
       isLocked: false,
-      maxParticipants: 3,
+      maxParticipants: roomCapacity,
       theme,
       status: 'active',
       createdAt: new Date().toISOString(),

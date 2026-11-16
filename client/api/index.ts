@@ -783,11 +783,14 @@ routeBoth('post', '/rooms', async (req: Request, res: Response) => {
       playbackRate: 1,
     };
 
+    const isLocalVideo = videoProvider === 'p2p_local' || videoProvider === 'local' || videoId.startsWith('local://');
+    const roomCapacity = isLocalVideo ? 3 : 20;
+
     // 2. Create Room in Neon DB
     await query(
       `INSERT INTO rooms (id, host_id, title, video_provider, video_id, is_private, passcode, is_locked, max_participants, theme, status, playback_state, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false, 3, $8, 'active', $9, NOW())`,
-      [roomId, hostId, resolved.title, videoProvider, videoId, isPrivateBool, cleanPasscode, cleanTheme, JSON.stringify(initialPlayback)]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, 'active', $10, NOW())`,
+      [roomId, hostId, resolved.title, videoProvider, videoId, isPrivateBool, cleanPasscode, roomCapacity, cleanTheme, JSON.stringify(initialPlayback)]
     );
 
     // 3. Register host as room member
@@ -817,7 +820,7 @@ routeBoth('post', '/rooms', async (req: Request, res: Response) => {
       isPrivate: isPrivateBool,
       passcode: cleanPasscode || undefined,
       isLocked: false,
-      maxParticipants: 3,
+      maxParticipants: roomCapacity,
       theme: cleanTheme,
       status: 'active',
       createdAt: new Date().toISOString(),
@@ -860,13 +863,16 @@ routeBoth('get', '/rooms/:id', async (req: Request, res: Response) => {
     );
     const memberCount = parseInt(mRes.rows[0]?.count || '1', 10);
 
+    const isLocal = row.video_provider === 'p2p_local' || row.video_provider === 'local' || (row.video_id && row.video_id.startsWith('local://'));
+    const maxCapacity = row.max_participants || (isLocal ? 3 : 20);
+
     res.json({
       id: row.id,
       title: row.title,
       videoId: row.video_id,
       isPrivate: Boolean(row.is_private),
       isLocked: Boolean(row.is_locked),
-      maxParticipants: row.max_participants || 3,
+      maxParticipants: maxCapacity,
       currentParticipants: memberCount,
       theme: row.theme || 'obsidian',
       status: row.status || 'active',
@@ -895,6 +901,9 @@ routeBoth('post', '/rooms/:id/join', async (req: Request, res: Response) => {
       return;
     }
 
+    const isLocal = room.video_provider === 'p2p_local' || room.video_provider === 'local' || (room.video_id && room.video_id.startsWith('local://'));
+    const maxCapacity = room.max_participants || (isLocal ? 3 : 20);
+
     const metadata = {
       id: room.id,
       hostId: room.host_id,
@@ -904,7 +913,7 @@ routeBoth('post', '/rooms/:id/join', async (req: Request, res: Response) => {
       isPrivate: Boolean(room.is_private),
       passcode: room.passcode || undefined,
       isLocked: Boolean(room.is_locked),
-      maxParticipants: room.max_participants || 3,
+      maxParticipants: maxCapacity,
       theme: room.theme,
       status: room.status,
       createdAt: room.created_at,
@@ -938,9 +947,9 @@ routeBoth('post', '/rooms/:id/join', async (req: Request, res: Response) => {
       [id]
     );
     const count = parseInt(mRes.rows[0]?.count || '0', 10);
-    if (count >= (room.max_participants || 3)) {
+    if (count >= maxCapacity) {
       res.status(403).json({
-        error: `Room is at maximum capacity (${room.max_participants} participants)`,
+        error: `Room is at maximum capacity (${maxCapacity} participants)`,
         code: 'CAPACITY_REACHED',
       });
       return;
@@ -1208,9 +1217,12 @@ routeBoth('post', '/rooms/:id/video', async (req: Request, res: Response) => {
       playbackRate: 1,
     };
 
+    const isNowLocal = finalProvider === 'p2p_local' || finalProvider === 'local' || finalVideoId.startsWith('local://');
+    const newCapacity = isNowLocal ? 3 : 20;
+
     await query(
-      'UPDATE rooms SET video_id = $1, title = $2, video_provider = $3, playback_state = $4 WHERE id = $5',
-      [finalVideoId, finalTitle || 'Watch Video', finalProvider, JSON.stringify(newPlayback), id]
+      'UPDATE rooms SET video_id = $1, title = $2, video_provider = $3, playback_state = $4, max_participants = $5 WHERE id = $6',
+      [finalVideoId, finalTitle || 'Watch Video', finalProvider, JSON.stringify(newPlayback), newCapacity, id]
     );
 
     res.json({ success: true, videoId: finalVideoId, provider: finalProvider, title: finalTitle, playback: newPlayback });
@@ -1692,6 +1704,9 @@ routeBoth('get', '/rooms/:id/poll', async (req: Request, res: Response) => {
       payload: s.payload,
     }));
 
+    const isRoomLocal = room.video_provider === 'p2p_local' || room.video_provider === 'local' || (room.video_id && room.video_id.startsWith('local://'));
+    const roomMaxCap = room.max_participants || (isRoomLocal ? 3 : 20);
+
     const metadata = {
       id: room.id,
       hostId: room.host_id,
@@ -1701,7 +1716,7 @@ routeBoth('get', '/rooms/:id/poll', async (req: Request, res: Response) => {
       isPrivate: Boolean(room.is_private),
       passcode: room.passcode || undefined,
       isLocked: Boolean(room.is_locked),
-      maxParticipants: room.max_participants || 3,
+      maxParticipants: roomMaxCap,
       theme: room.theme,
       status: room.status,
       createdAt: room.created_at,
@@ -1745,15 +1760,15 @@ routeBoth('post', '/billing/upgrade-room', async (req: Request, res: Response) =
       return;
     }
 
-    await query('UPDATE rooms SET max_participants = 20 WHERE id = $1', [roomId]);
-    res.json({ success: true, maxParticipants: 20 });
+    await query('UPDATE rooms SET max_participants = 50 WHERE id = $1', [roomId]);
+    res.json({ success: true, maxParticipants: 50 });
   } catch (err: any) {
     res.status(500).json({ error: 'Error upgrading room' });
   }
 });
 
 routeBoth('get', '/billing/subscription', (_req: Request, res: Response) => {
-  res.json({ plan: 'pro', maxParticipants: 20, active: true });
+  res.json({ plan: 'pro', maxParticipants: 50, active: true });
 });
 
 export default app;

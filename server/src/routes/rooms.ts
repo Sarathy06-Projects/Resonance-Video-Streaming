@@ -539,9 +539,15 @@ router.post('/:id/video', async (req: Request, res: Response) => {
       playbackRate: 1,
     };
 
+    const isNowLocal = finalProvider === 'p2p_local' || finalProvider === 'local' || finalVideoId.startsWith('local://');
+    const newCapacity = isNowLocal ? 3 : 20;
+    if (coordinator) {
+      coordinator.metadata.maxParticipants = newCapacity;
+    }
+
     await query(
-      'UPDATE rooms SET video_provider = $1, video_id = $2, title = $3, playback_state = $4 WHERE id = $5',
-      [finalProvider, finalVideoId, finalTitle || 'Video', JSON.stringify(newPlayback), id]
+      'UPDATE rooms SET video_provider = $1, video_id = $2, title = $3, playback_state = $4, max_participants = $5 WHERE id = $6',
+      [finalProvider, finalVideoId, finalTitle || 'Video', JSON.stringify(newPlayback), newCapacity, id]
     );
 
     res.json({ success: true, provider: finalProvider, videoId: finalVideoId, title: finalTitle, playback: newPlayback });

@@ -458,7 +458,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
                 participants={participants}
                 currentUserId={currentUserId}
                 isHost={isHost}
-                maxParticipants={metadata?.maxParticipants || 3}
+                maxParticipants={metadata?.maxParticipants || (metadata?.videoProvider === 'p2p_local' || metadata?.videoProvider === 'local' ? 3 : 20)}
                 onKickMember={(id) => emitKickMember(id)}
                 onTransferHost={(id) => emitTransferHost(id)}
                 onOpenInvite={() => setIsInviteOpen(true)}

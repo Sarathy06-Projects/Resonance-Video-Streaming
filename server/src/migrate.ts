@@ -20,7 +20,7 @@ const schemaStatements = [
     is_private BOOLEAN DEFAULT FALSE,
     passcode VARCHAR,
     is_locked BOOLEAN DEFAULT FALSE,
-    max_participants INTEGER DEFAULT 3,
+    max_participants INTEGER DEFAULT 20,
     theme VARCHAR DEFAULT 'obsidian',
     status VARCHAR DEFAULT 'active',
     created_at TIMESTAMPTZ DEFAULT NOW(),
