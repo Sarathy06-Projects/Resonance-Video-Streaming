@@ -279,6 +279,18 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
+          {/* Change Video Button (Host Only) */}
+          {isHost && (
+            <button
+              onClick={() => setIsChangeVideoOpen(true)}
+              className="flex items-center gap-1.5 text-xs text-white/80 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] px-3 py-1.5 rounded-full transition-colors cursor-pointer"
+              title="Change Video Source"
+            >
+              <Film className="w-3.5 h-3.5 text-white/60" />
+              <span className="hidden sm:inline">Change Video</span>
+            </button>
+          )}
+
           {/* Upgrade Button (Host Only) */}
           {isHost && (
             <button
@@ -328,11 +340,11 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
       )}
 
       {/* Main Experience: Video Canvas + Sidebar */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
-        {/* Left Side: Video Canvas & Controls */}
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col p-0 sm:p-4 lg:p-5 overflow-y-auto">
-          {/* 16:9 Cinematic Video Player Container (Fully Mobile-Responsive & Sticky) */}
-          <div className="w-full aspect-video sm:rounded-2xl overflow-hidden bg-black border-b sm:border border-white/[0.06] shadow-2xl relative sticky top-0 lg:static z-20 shrink-0">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
+        {/* Left Side: Video Canvas */}
+        <div className="w-full lg:flex-1 min-w-0 min-h-0 flex flex-col p-0 sm:p-3 lg:p-5 shrink-0 lg:overflow-y-auto">
+          {/* 16:9 Cinematic Video Player Container */}
+          <div className="w-full aspect-video sm:rounded-2xl overflow-hidden bg-black border-b sm:border border-white/[0.06] shadow-2xl relative shrink-0">
             <VideoPlayer
               videoId={currentVideoId}
               provider={currentProvider}
@@ -363,50 +375,10 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
               }}
             />
           </div>
-
-          {/* Refined Video Information Layout */}
-          <div className="p-3.5 sm:p-0 mt-2 sm:mt-4 pt-1 sm:pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base sm:text-lg font-medium text-white tracking-tight leading-snug">
-                {metadata?.title || 'Video Stream'}
-              </h2>
-              <div className="flex items-center gap-2 mt-1 text-xs text-white/40">
-                <span className="font-medium text-white/60">{currentMeta.name}</span>
-                <span>•</span>
-                <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  Synchronized
-                </span>
-                <span>•</span>
-                <span>{participants.length} {participants.length === 1 ? 'viewer' : 'viewers'}</span>
-              </div>
-            </div>
-
-            {/* Quiet Actions */}
-            <div className="flex items-center gap-2">
-              {isHost && (
-                <button
-                  onClick={() => setIsChangeVideoOpen(true)}
-                  className="flex items-center gap-1.5 text-xs text-white/80 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] px-3.5 py-2 rounded-xl border border-white/[0.08] transition-colors"
-                >
-                  <Film className="w-3.5 h-3.5 text-white/60" />
-                  <span>Change Video</span>
-                </button>
-              )}
-
-              <button
-                onClick={() => setIsInviteOpen(true)}
-                className="flex items-center gap-1.5 text-xs text-white/80 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] px-3.5 py-2 rounded-xl border border-white/[0.08] transition-colors"
-              >
-                <Share2 className="w-3.5 h-3.5 text-white/60" />
-                <span>Share Link</span>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Right Side: Integrated Sidebar */}
-        <div className="w-full lg:w-[350px] xl:w-[380px] 2xl:w-[420px] flex flex-col h-[520px] lg:h-full min-h-0 shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0a0c10]">
+        <div className="flex-1 min-h-0 w-full lg:w-[350px] xl:w-[380px] 2xl:w-[420px] flex flex-col h-full shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0a0c10]">
           {/* Segmented Tab Switcher */}
           <div className="p-3 border-b border-white/[0.06] shrink-0">
             <div className="grid grid-cols-3 bg-white/[0.03] p-1 rounded-xl border border-white/[0.06] text-xs">

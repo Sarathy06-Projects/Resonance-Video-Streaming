@@ -180,17 +180,17 @@ export const LiveChat: React.FC<LiveChatProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Composer Section */}
-      <div className="p-3 border-t border-white/[0.06] bg-[#0c0e14] shrink-0">
+      {/* Composer Section (Floating & Stuck to Bottom for Mobile) */}
+      <div className="p-2.5 sm:p-3 border-t border-white/[0.08] bg-[#0c0e14]/95 backdrop-blur-xl shrink-0 sticky bottom-0 z-30 shadow-[0_-10px_25px_rgba(0,0,0,0.5)] pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {/* Quick Reactions Bar */}
-        <div className="flex items-center justify-between pb-2.5 px-0.5">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-between pb-2 px-0.5">
+          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
             {quickReactions.map((emoji) => (
               <button
                 key={emoji}
                 type="button"
                 onClick={() => onSendReaction(emoji, 'emoji')}
-                className="w-7.5 h-7.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] active:bg-white/[0.12] border border-white/[0.06] hover:border-white/[0.14] flex items-center justify-center text-sm transition-all hover:scale-110 active:scale-95 select-none shadow-sm"
+                className="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-lg bg-white/[0.03] hover:bg-white/[0.08] active:bg-white/[0.15] border border-white/[0.06] hover:border-white/[0.14] flex items-center justify-center text-xs sm:text-sm transition-all hover:scale-110 active:scale-95 select-none shadow-sm shrink-0 touch-manipulation cursor-pointer"
                 title={`React ${emoji}`}
               >
                 {emoji}
@@ -200,7 +200,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
 
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className="text-white/30 hover:text-white/70 p-1.5 rounded-lg hover:bg-white/[0.04] transition-colors"
+            className="text-white/30 hover:text-white/70 p-1.5 rounded-lg hover:bg-white/[0.04] transition-colors shrink-0 cursor-pointer"
             title={soundEnabled ? 'Mute notification sound' : 'Unmute notification sound'}
           >
             {soundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
@@ -215,12 +215,12 @@ export const LiveChat: React.FC<LiveChatProps> = ({
             onChange={(e) => setInputText(e.target.value)}
             placeholder="Type a message..."
             maxLength={500}
-            className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-white/20 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 outline-none pr-10 transition-colors"
+            className="w-full bg-white/[0.06] border border-white/[0.1] focus:border-white/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/35 outline-none pr-10 transition-colors shadow-inner"
           />
           <button
             type="submit"
             disabled={!inputText.trim() || isSubmitting}
-            className="absolute right-1.5 p-1.5 rounded-lg bg-white text-black hover:bg-white/90 disabled:opacity-20 disabled:hover:bg-white transition-all"
+            className="absolute right-1.5 p-1.5 rounded-lg bg-white text-black hover:bg-white/90 disabled:opacity-20 disabled:hover:bg-white transition-all cursor-pointer shadow-sm"
             title="Send message"
           >
             <Send className="w-3.5 h-3.5 ml-0.5" />
