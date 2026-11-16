@@ -159,7 +159,7 @@ export const ExternalPlaybackView: React.FC<ExternalPlaybackViewProps> = ({
       </div>
 
       <p className="text-[11px] text-gray-400 mt-3 max-w-sm">
-        Room Chat, Audio Calling, and Video Calling remain live simultaneously.
+        Room Chat, playback sync, and reactions remain live simultaneously.
       </p>
     </div>
   );

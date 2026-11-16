@@ -386,11 +386,35 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
   };
 
   const handleToggleFullscreen = () => {
-    if (!playerWrapperRef.current) return;
-    if (!document.fullscreenElement) {
-      playerWrapperRef.current.requestFullscreen().catch(() => {});
+    const el = playerWrapperRef.current as any;
+    if (!el) return;
+    const doc = document as any;
+    const isFs = doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement;
+    if (!isFs) {
+      if (el.requestFullscreen) {
+        el.requestFullscreen().catch(() => {});
+      } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen();
+      } else if (el.mozRequestFullScreen) {
+        el.mozRequestFullScreen();
+      } else if (el.msRequestFullscreen) {
+        el.msRequestFullscreen();
+      } else {
+        const video = el.querySelector('video') as any;
+        if (video && video.webkitEnterFullscreen) {
+          video.webkitEnterFullscreen();
+        }
+      }
     } else {
-      document.exitFullscreen().catch(() => {});
+      if (doc.exitFullscreen) {
+        doc.exitFullscreen().catch(() => {});
+      } else if (doc.webkitExitFullscreen) {
+        doc.webkitExitFullscreen();
+      } else if (doc.mozCancelFullScreen) {
+        doc.mozCancelFullScreen();
+      } else if (doc.msExitFullscreen) {
+        doc.msExitFullscreen();
+      }
     }
   };
 
@@ -463,10 +487,12 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
     <div
       ref={playerWrapperRef}
       onMouseMove={handleMouseMove}
+      onTouchStart={handleMouseMove}
+      onClick={handleMouseMove}
       onMouseLeave={() => {
         if (isPlaying) setShowControls(false);
       }}
-      className="relative w-full h-full bg-black select-none overflow-hidden group/player"
+      className="relative w-full h-full bg-black select-none overflow-hidden group/player touch-manipulation"
     >
       {/* Media Engine Layer */}
       <div className="absolute inset-0 w-full h-full">
@@ -663,15 +689,15 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
 
       {/* Video Player Controls Bar */}
       <div
-        className={`absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent px-3 sm:px-5 pb-3 pt-6 transition-opacity duration-300 z-25 flex flex-col gap-2 ${
+        className={`absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-2 sm:px-5 pb-2 sm:pb-3 pt-6 transition-opacity duration-300 z-25 flex flex-col gap-1.5 sm:gap-2 ${
           showControls || !isPlaying ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
         {/* Scrubber Progress Bar */}
         {capabilities.canSeek ? (
-          <div className="relative group/seeker flex items-center h-4 cursor-pointer">
+          <div className="relative group/seeker flex items-center h-5 sm:h-4 cursor-pointer touch-none">
             {/* Background track */}
-            <div className="w-full h-1 group-hover/seeker:h-1.5 bg-white/20 rounded-full overflow-hidden transition-all relative">
+            <div className="w-full h-1.5 sm:h-1 group-hover/seeker:h-1.5 bg-white/20 rounded-full overflow-hidden transition-all relative">
               {/* Progress bar */}
               <div
                 className="h-full bg-white rounded-full transition-all"
@@ -693,19 +719,19 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
             />
           </div>
         ) : (
-          <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 sm:h-1 bg-white/20 rounded-full overflow-hidden">
             <div className="w-full h-full bg-rose-500/80 animate-pulse" />
           </div>
         )}
 
         {/* Action Controls Row */}
-        <div className="flex items-center justify-between gap-3 text-white">
+        <div className="flex items-center justify-between gap-1.5 sm:gap-3 text-white">
           {/* Left Controls: Play/Pause, Rewind, Forward, Time */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {isHost ? (
               <button
                 onClick={handleTogglePlay}
-                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white"
+                className="p-2 sm:p-1.5 rounded-lg hover:bg-white/10 active:bg-white/20 transition-colors text-white touch-manipulation"
                 title={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
@@ -727,14 +753,14 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
               <>
                 <button
                   onClick={() => skipSeconds(-10)}
-                  className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white hidden sm:block"
+                  className="p-2 sm:p-1.5 rounded-lg hover:bg-white/10 active:bg-white/20 transition-colors text-white/70 hover:text-white hidden sm:block"
                   title="Rewind 10s"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() => skipSeconds(10)}
-                  className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/70 hover:text-white hidden sm:block"
+                  className="p-2 sm:p-1.5 rounded-lg hover:bg-white/10 active:bg-white/20 transition-colors text-white/70 hover:text-white hidden sm:block"
                   title="Forward 10s"
                 >
                   <RotateCw className="w-3.5 h-3.5" />
@@ -743,7 +769,7 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
             )}
 
             {/* Time Stamp */}
-            <div className="text-[11px] font-mono text-white/70 ml-1 select-none">
+            <div className="text-[10px] sm:text-[11px] font-mono text-white/70 ml-0.5 sm:ml-1 select-none">
               {capabilities.isLive ? (
                 <span className="text-rose-400 font-medium flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
@@ -758,7 +784,7 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
           </div>
 
           {/* Right Controls: Volume, Sync Dot, Next Queue, Fullscreen */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {/* Volume Control with hover slider */}
             <div
               className="flex items-center gap-1 relative"
@@ -767,7 +793,7 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
             >
               <button
                 onClick={handleToggleMute}
-                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white"
+                className="p-2 sm:p-1.5 rounded-lg hover:bg-white/10 active:bg-white/20 transition-colors text-white/80 hover:text-white touch-manipulation"
                 title={isMuted ? 'Unmute' : 'Mute'}
               >
                 {isMuted || volume === 0 ? (
@@ -777,7 +803,7 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
                 )}
               </button>
               {isHoveringVolume && (
-                <div className="w-16 sm:w-20 pr-1 flex items-center">
+                <div className="w-16 sm:w-20 pr-1 hidden sm:flex items-center">
                   <input
                     type="range"
                     min={0}
@@ -804,7 +830,7 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
             {isHost && hasQueueItem && onPlayNextQueue && (
               <button
                 onClick={onPlayNextQueue}
-                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white"
+                className="p-2 sm:p-1.5 rounded-lg hover:bg-white/10 active:bg-white/20 transition-colors text-white/80 hover:text-white touch-manipulation"
                 title="Play next video in queue"
               >
                 <SkipForward className="w-4 h-4" />
@@ -814,7 +840,7 @@ export const UniversalPlayer: React.FC<UniversalPlayerProps> = ({
             {/* Fullscreen Button */}
             <button
               onClick={handleToggleFullscreen}
-              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/80 hover:text-white"
+              className="p-2 sm:p-1.5 rounded-lg hover:bg-white/10 active:bg-white/20 transition-colors text-white/80 hover:text-white touch-manipulation"
               title="Fullscreen"
             >
               <Maximize className="w-4 h-4" />

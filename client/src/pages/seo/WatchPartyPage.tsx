@@ -8,10 +8,10 @@ interface SeoPageProps {
 
 export const WatchPartyPage: React.FC<SeoPageProps> = ({ onStartRoom, onGoHome }) => {
   useEffect(() => {
-    document.title = 'Host a Watch Party Online with Audio & Video Calling — Resonance';
+    document.title = 'Host a Watch Party Online with Friends — Resonance';
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) {
-      metaDesc.setAttribute('content', 'Host virtual watch parties with friends online. Enjoy synchronized video playback with built-in voice calling, video chat, reactions, and room queueing.');
+      metaDesc.setAttribute('content', 'Host virtual watch parties with friends online. Enjoy synchronized video playback with real-time chat, instant emoji reactions, and room queueing.');
     }
     const canonicalLink = document.querySelector('link[rel="canonical"]');
     if (canonicalLink) {
@@ -73,25 +73,25 @@ export const WatchPartyPage: React.FC<SeoPageProps> = ({ onStartRoom, onGoHome }
             Host an Online Watch Party With Friends
           </h1>
           <p className="text-base sm:text-lg text-white/60 leading-relaxed max-w-2xl">
-            More than just a screen share. Talk, laugh, react, and watch together with zero video compression artifacts and crystal-clear voice and video calling.
+            More than just a screen share. React, chat, and watch together with zero video compression artifacts and frame-locked synchronized playback.
           </p>
         </div>
 
         {/* Feature Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-16">
           <div className="p-6 rounded-2xl border border-white/[0.08] bg-[#0c0e14]">
-            <Headphones className="w-5 h-5 text-indigo-400 mb-3" />
-            <h2 className="text-sm font-semibold text-white mb-2">Integrated Audio Calling</h2>
+            <Play className="w-5 h-5 text-indigo-400 mb-3" />
+            <h2 className="text-sm font-semibold text-white mb-2">Frame-Locked Playback</h2>
             <p className="text-xs text-white/50 leading-relaxed">
-              Low-latency voice calling powered by LiveKit WebRTC lets you react and chat simultaneously without needing Discord or external tools.
+              Sub-second synchronization keeps everyone aligned without audio drift or buffering loops.
             </p>
           </div>
 
           <div className="p-6 rounded-2xl border border-white/[0.08] bg-[#0c0e14]">
-            <Video className="w-5 h-5 text-purple-400 mb-3" />
-            <h2 className="text-sm font-semibold text-white mb-2">Face-to-Face Video Grid</h2>
+            <Users className="w-5 h-5 text-purple-400 mb-3" />
+            <h2 className="text-sm font-semibold text-white mb-2">Instant Room Joining</h2>
             <p className="text-xs text-white/50 leading-relaxed">
-              See your friends&apos; real reactions alongside the playback canvas with auto-resizing video participant tiles.
+              Friends can join with one click on any modern web browser without downloading software or browser extensions.
             </p>
           </div>
 

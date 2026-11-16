@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRoomSocket } from '../hooks/useRoomSocket';
-import { useAudioCall } from '../hooks/useAudioCall';
 import { VideoPlayer } from '../components/VideoPlayer';
 import { LiveChat } from '../components/LiveChat';
 import { ParticipantsList } from '../components/ParticipantsList';
@@ -29,7 +28,6 @@ import { InviteModal } from '../components/InviteModal';
 import { UpgradeModal } from '../components/UpgradeModal';
 import { RoomSettingsModal } from '../components/RoomSettingsModal';
 import { ChangeVideoModal } from '../components/ChangeVideoModal';
-import { AudioCallBar } from '../components/AudioCallBar';
 import { PROVIDER_META } from '../utils/resolver';
 
 interface WatchRoomPageProps {
@@ -59,8 +57,6 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
 
   const p2pSignalRef = useRef<((senderId: string, payload: any) => void) | null>(null);
   const p2pStateRef = useRef<((senderId: string, state: any) => void) | null>(null);
-  const audioEventRef = useRef<((event: any) => void) | null>(null);
-  const audioCallRef = useRef<any>(null);
 
   const {
     connectionStatus,
@@ -72,10 +68,6 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     queue,
     reactions,
     isLocked,
-    isCallActive,
-    callMode,
-    callParticipants,
-    callHostName,
     emitPlay,
     emitPause,
     emitSeek,
@@ -90,13 +82,8 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     emitAddToQueue,
     emitRemoveFromQueue,
     emitPlayNextQueue,
-    emitStartCall,
-    emitEndCall,
-    emitJoinCall,
-    emitLeaveCall,
     emitP2PStreamSignal,
     emitP2PStreamState,
-    emitAudioEvent,
     emitTerminateRoom,
     emitLeaveRoom,
   } = useRoomSocket({
@@ -104,7 +91,6 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     token,
     onP2PStreamSignal: (senderId, payload) => p2pSignalRef.current?.(senderId, payload),
     onP2PStreamState: (senderId, state) => p2pStateRef.current?.(senderId, state),
-    onAudioEvent: (event) => audioEventRef.current?.(event),
     onHostDisconnected: (_hId, _grace, deadline) => {
       setIsHostReconnecting(true);
       const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
@@ -122,7 +108,6 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
       setIsRoomTerminated(true);
       setRoomTerminationReason(reason || 'The host has left the room. This session has been ended.');
       setIsHostReconnecting(false);
-      audioCallRef.current?.leaveCall?.();
     },
     onKicked: (msg) => {
       alert(msg || 'You were removed from this room.');
@@ -132,7 +117,6 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
       setIsRoomTerminated(true);
       setRoomTerminationReason(reason || 'The room has ended.');
       setIsHostReconnecting(false);
-      audioCallRef.current?.leaveCall?.();
     },
   });
 
@@ -209,23 +193,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
     ? hostParticipant.name
     : session?.role === 'host'
     ? effectiveUserName
-    : callHostName || 'Host';
-
-  // Production-Ready 5-Person WebRTC Mesh Audio Call Hook (STUN Only, Zero Server Cost)
-  const audioCall = useAudioCall({
-    roomId,
-    token,
-    myUserId: currentUserId,
-    myUserName: effectiveUserName,
-    isHost,
-    emitAudioEvent,
-  });
-
-  audioCallRef.current = audioCall;
-
-  useEffect(() => {
-    audioEventRef.current = audioCall.handleAudioEvent;
-  }, [audioCall.handleAudioEvent]);
+    : 'Host';
 
   const handleCopyRoomId = () => {
     navigator.clipboard.writeText(roomId);
@@ -238,7 +206,6 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
       setIsLeaveConfirmOpen(true);
     } else {
       emitLeaveRoom();
-      audioCall.leaveCall();
       onLeaveRoom();
     }
   };
@@ -246,7 +213,6 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
   const handleConfirmHostLeave = () => {
     setIsLeaveConfirmOpen(false);
     emitTerminateRoom('The host has ended the room session.');
-    audioCall.leaveCall();
     onLeaveRoom();
   };
 
@@ -313,14 +279,6 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
-          {/* Active Audio Call Badge if call is live */}
-          {audioCall.isCallActive && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Voice Live ({audioCall.participants.length}/5)</span>
-            </div>
-          )}
-
           {/* Upgrade Button (Host Only) */}
           {isHost && (
             <button
@@ -372,9 +330,9 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
       {/* Main Experience: Video Canvas + Sidebar */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
         {/* Left Side: Video Canvas & Controls */}
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col p-3 sm:p-4 lg:p-5 overflow-y-auto">
-          {/* 16:9 Cinematic Video Player Container */}
-          <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black border border-white/[0.06] shadow-2xl relative">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col p-0 sm:p-4 lg:p-5 overflow-y-auto">
+          {/* 16:9 Cinematic Video Player Container (Fully Mobile-Responsive & Sticky) */}
+          <div className="w-full aspect-video sm:rounded-2xl overflow-hidden bg-black border-b sm:border border-white/[0.06] shadow-2xl relative sticky top-0 lg:static z-20 shrink-0">
             <VideoPlayer
               videoId={currentVideoId}
               provider={currentProvider}
@@ -406,29 +364,8 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
             />
           </div>
 
-          {/* Production-Ready 5-Person WebRTC Mesh Audio Call */}
-          <div className="mt-3">
-            <AudioCallBar
-              isCallActive={audioCall.isCallActive}
-              isInCall={audioCall.isInCall}
-              isConnecting={audioCall.isConnecting}
-              isMicMuted={audioCall.isMicMuted}
-              callError={audioCall.callError}
-              isHost={isHost}
-              participants={audioCall.participants}
-              speakingParticipants={audioCall.speakingParticipants}
-              onStartCall={audioCall.startCall}
-              onJoinCall={audioCall.joinCall}
-              onLeaveCall={audioCall.leaveCall}
-              onEndCall={audioCall.endCall}
-              onToggleMic={audioCall.toggleMute}
-              onRetry={audioCall.retryConnections}
-              onClearError={audioCall.clearError}
-            />
-          </div>
-
           {/* Refined Video Information Layout */}
-          <div className="mt-4 pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-3.5 sm:p-0 mt-2 sm:mt-4 pt-1 sm:pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-base sm:text-lg font-medium text-white tracking-tight leading-snug">
                 {metadata?.title || 'Video Stream'}

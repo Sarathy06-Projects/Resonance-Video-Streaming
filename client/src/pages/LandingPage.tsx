@@ -56,7 +56,7 @@ const faqs = [
   {
     question: 'What is Resonance?',
     answer:
-      'Resonance is a web-based shared watch experience where you can watch supported videos with friends in real time, complete with live chat, reactions, and integrated audio/video calling.',
+      'Resonance is a web-based shared watch experience where you can watch supported videos with friends in real time, complete with synchronized playback, live chat, and instant reactions.',
   },
   {
     question: 'How does synchronized playback work?',
@@ -79,9 +79,9 @@ const faqs = [
       'No. Resonance does not host, download, transcode, or redistribute videos. Videos are streamed directly from their respective providers or media hosts.',
   },
   {
-    question: 'Does it support group video and audio calling?',
+    question: 'How do we interact while watching videos?',
     answer:
-      'Yes! Resonance includes integrated LiveKit calling so you can talk with audio or video with friends directly inside the watch room while streaming together.',
+      'Resonance features ultra-low latency real-time synchronized playback, live in-room text chat, and interactive emoji reactions so you and your friends can react together in real time.',
   },
 ] as const;
 
@@ -1203,7 +1203,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       A little closer
                     </h3>
                     <p className="text-xs text-white/50 leading-relaxed mt-2">
-                      Make long-distance days feel a little less distant with integrated crystal-clear audio and video calling alongside your video.
+                      Make long-distance days feel a little less distant with perfectly synchronized streaming and real-time chat alongside your video.
                     </p>
                   </div>
                 </div>
@@ -1437,12 +1437,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     See who is sharing the moment.
                   </h3>
                   <p className="text-xs text-white/50 leading-relaxed mt-2.5">
-                    Know who is in the room and enjoy crystal-clear audio and video calling powered by LiveKit WebRTC.
+                    Know who is in the room and enjoy sub-second synchronized playback with real-time room chat.
                   </p>
                 </div>
-                <div className="mt-6 pt-4 border-t border-white/[0.06] text-[10px] font-mono text-indigo-400 flex items-center gap-1.5">
-                  <Phone className="w-3 h-3" />
-                  <span>LiveKit Group Calling Enabled</span>
+                <div className="mt-6 pt-4 border-t border-white/[0.06] text-[10px] font-mono text-emerald-400 flex items-center gap-1.5">
+                  <Users className="w-3 h-3" />
+                  <span>Real-Time Presence & Chat</span>
                 </div>
               </div>
 
