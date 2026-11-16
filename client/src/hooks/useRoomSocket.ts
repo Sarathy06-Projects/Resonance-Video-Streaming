@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   RoomEvent,
   PlaybackState,
@@ -8,6 +8,7 @@ import {
   QueueItem,
   RoomMetadata,
 } from '../types';
+import { api } from '../services/api';
 
 interface UseRoomSocketProps {
   roomId: string;
@@ -218,10 +219,31 @@ export function useRoomSocket({
       if (Array.isArray(data.callParticipants)) setCallParticipants(data.callParticipants);
       if (data.callHostName) setCallHostName(data.callHostName);
 
-      // WebRTC Signals
+      // WebRTC Signals & Realtime Updates
       if (Array.isArray(data.signals) && data.signals.length > 0) {
         for (const sig of data.signals) {
-          if (sig.payload?.isP2PStream || sig.payload?.p2pStream) {
+          if (sig.type === 'chat:seen' && sig.payload) {
+            const { messageIds, userId, userName, seenAt } = sig.payload;
+            if (Array.isArray(messageIds) && messageIds.length > 0) {
+              setChatMessages((prev) =>
+                prev.map((msg) => {
+                  if (messageIds.includes(msg.id)) {
+                    const existing = msg.seenBy || [];
+                    const alreadySeen = existing.some((s) => s.userId === userId);
+                    const newSeenBy = alreadySeen
+                      ? existing
+                      : [...existing, { userId, userName, seenAt: seenAt || Date.now() }];
+                    return {
+                      ...msg,
+                      status: 'seen',
+                      seenBy: newSeenBy,
+                    };
+                  }
+                  return msg;
+                })
+              );
+            }
+          } else if (sig.payload?.isP2PStream || sig.payload?.p2pStream) {
             callbacksRef.current.onP2PStreamSignal?.(sig.senderId, sig.payload);
           } else {
             callbacksRef.current.onCallSignal?.(sig.senderId, sig.payload);
@@ -232,25 +254,28 @@ export function useRoomSocket({
       // Chat Messages with deduplication and unread arrival
       if (Array.isArray(data.recentChat) && data.recentChat.length > 0) {
         setChatMessages((prev) => {
-          const existingIds = new Set(
-            prev.filter((m) => m.status !== 'failed').map((m) => m.id)
-          );
-          const newFromOther = data.recentChat.filter(
-            (m: ChatMessage) => !existingIds.has(m.id)
-          );
-          if (newFromOther.length === 0) return prev;
+          const map = new Map<string, ChatMessage>();
+          prev.forEach((m) => map.set(m.id, m));
 
-          // Update latest timestamp cursor
-          newFromOther.forEach((m: ChatMessage) => {
-            lastChatTimestampRef.current = Math.max(lastChatTimestampRef.current, m.timestamp);
-            callbacksRef.current.onNewChat?.(m);
+          data.recentChat.forEach((incoming: ChatMessage) => {
+            const current = map.get(incoming.id);
+            if (!current) {
+              map.set(incoming.id, incoming);
+              lastChatTimestampRef.current = Math.max(lastChatTimestampRef.current, incoming.timestamp);
+              callbacksRef.current.onNewChat?.(incoming);
+            } else {
+              // Update seenBy and status if updated
+              if (incoming.seenBy && incoming.seenBy.length > 0) {
+                map.set(incoming.id, {
+                  ...current,
+                  seenBy: incoming.seenBy,
+                  status: 'seen',
+                });
+              }
+            }
           });
 
-          // Retain failed messages while merging new ones
-          const stable = prev.filter(
-            (m) => !m.id.startsWith('temp_') || m.status === 'failed'
-          );
-          return [...stable, ...newFromOther];
+          return Array.from(map.values()).sort((a, b) => a.timestamp - b.timestamp);
         });
       }
 
@@ -434,10 +459,34 @@ export function useRoomSocket({
             setChatMessages((prev) => {
               const existing = prev.some((m) => m.id === msg.id);
               if (existing) return prev;
-              return [...prev, { ...msg, status: 'sent' }];
+              return [...prev, { ...msg, status: msg.seenBy && msg.seenBy.length > 0 ? 'seen' : 'sent' }];
             });
             lastChatTimestampRef.current = Math.max(lastChatTimestampRef.current, msg.timestamp);
             callbacksRef.current.onNewChat?.(msg);
+            break;
+          }
+
+          case 'chat:seen': {
+            const { messageIds, userId, userName, seenAt } = roomEvent.payload;
+            if (Array.isArray(messageIds) && messageIds.length > 0) {
+              setChatMessages((prev) =>
+                prev.map((msg) => {
+                  if (messageIds.includes(msg.id)) {
+                    const existing = msg.seenBy || [];
+                    const alreadySeen = existing.some((s) => s.userId === userId);
+                    const newSeenBy = alreadySeen
+                      ? existing
+                      : [...existing, { userId, userName, seenAt: seenAt || Date.now() }];
+                    return {
+                      ...msg,
+                      status: 'seen',
+                      seenBy: newSeenBy,
+                    };
+                  }
+                  return msg;
+                })
+              );
+            }
             break;
           }
 
@@ -848,6 +897,46 @@ export function useRoomSocket({
     [roomId, token]
   );
 
+  const seenIdsSetRef = useRef<Set<string>>(new Set());
+
+  const myUserId = useMemo(() => {
+    try {
+      if (!token) return 'me';
+      const parts = token.split('.');
+      if (parts.length >= 2) {
+        const payload = JSON.parse(atob(parts[1]));
+        return payload.userId || 'me';
+      }
+    } catch {}
+    return 'me';
+  }, [token]);
+
+  // Mark messages as seen by current participant
+  const emitMarkMessagesSeen = useCallback(
+    (messageIds: string[]) => {
+      if (!messageIds || messageIds.length === 0) return;
+      const unseen = messageIds.filter((id) => !seenIdsSetRef.current.has(id));
+      if (unseen.length === 0) return;
+      unseen.forEach((id) => seenIdsSetRef.current.add(id));
+
+      send('chat:seen', { messageIds: unseen });
+      api.markMessagesSeen(roomId, token, unseen).catch(() => {});
+    },
+    [send, roomId, token]
+  );
+
+  // Automatically mark incoming messages from other participants as seen
+  useEffect(() => {
+    if (!chatMessages.length) return;
+    const otherUnseen = chatMessages
+      .filter((m) => m.senderId !== myUserId && !m.id.startsWith('temp_') && !seenIdsSetRef.current.has(m.id))
+      .map((m) => m.id);
+
+    if (otherUnseen.length > 0) {
+      emitMarkMessagesSeen(otherUnseen);
+    }
+  }, [chatMessages, myUserId, emitMarkMessagesSeen]);
+
   const emitPlay = useCallback(
     (position: number) =>
       send('playback:play', {
@@ -984,6 +1073,7 @@ export function useRoomSocket({
     emitVideoChange,
     emitChatMessage,
     emitRetryMessage,
+    emitMarkMessagesSeen,
     emitReaction,
     emitTransferHost,
     emitKickMember,

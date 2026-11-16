@@ -578,10 +578,10 @@ export class RoomCoordinator {
           this.chatHistory.shift();
         }
 
-        // Persist to Neon DB
+        // Persist to Neon DB with seen_by
         query(
-          `INSERT INTO room_messages (id, room_id, sender_id, sender_name, sender_role, message, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+          `INSERT INTO room_messages (id, room_id, sender_id, sender_name, sender_role, message, created_at, seen_by)
+           VALUES ($1, $2, $3, $4, $5, $6, NOW(), '[]'::jsonb)`,
           [chatMessage.id, this.roomId, senderId, chatMessage.senderName, chatMessage.senderRole, text]
         ).catch((err) => console.error('[RoomCoordinator] Error saving chat message:', err));
 
@@ -593,6 +593,57 @@ export class RoomCoordinator {
           sequence: this.getNextSequence(),
           sentAt: Date.now(),
           payload: { message: chatMessage },
+        });
+        break;
+      }
+
+      case 'chat:seen': {
+        const messageIds = Array.isArray(event.payload?.messageIds) ? event.payload.messageIds : [];
+        if (messageIds.length === 0) break;
+        const seenEntry = {
+          userId: senderId,
+          userName: client.participant.name,
+          seenAt: Date.now(),
+        };
+
+        // Update in-memory chat history
+        for (const msg of this.chatHistory) {
+          if (messageIds.includes(msg.id) && msg.senderId !== senderId) {
+            msg.seenBy = msg.seenBy || [];
+            if (!msg.seenBy.some((s) => s.userId === senderId)) {
+              msg.seenBy.push(seenEntry);
+              msg.status = 'seen';
+            }
+          }
+        }
+
+        // Persist to Neon DB
+        for (const msgId of messageIds) {
+          query(
+            `UPDATE room_messages
+             SET seen_by = CASE
+               WHEN seen_by @> jsonb_build_array(jsonb_build_object('userId', $1::text)) THEN seen_by
+               ELSE COALESCE(seen_by, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('userId', $1::text, 'userName', $2::text, 'seenAt', $3::bigint))
+             END
+             WHERE id = $4 AND room_id = $5 AND sender_id != $1`,
+            [senderId, client.participant.name, seenEntry.seenAt, msgId, this.roomId]
+          ).catch(console.error);
+        }
+
+        // Broadcast chat:seen to other clients
+        this.broadcast({
+          id: nanoid(),
+          roomId: this.roomId,
+          type: 'chat:seen' as any,
+          senderId,
+          sequence: this.getNextSequence(),
+          sentAt: Date.now(),
+          payload: {
+            messageIds,
+            userId: senderId,
+            userName: client.participant.name,
+            seenAt: seenEntry.seenAt,
+          },
         });
         break;
       }

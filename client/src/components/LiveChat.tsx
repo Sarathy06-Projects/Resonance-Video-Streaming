@@ -151,25 +151,47 @@ export const LiveChat: React.FC<LiveChatProps> = ({
                 </div>
 
                 {/* Status indicator for my messages */}
-                {isMe && msg.status && (
-                  <div className="flex items-center gap-1 mt-0.5 px-1 text-[10px] text-white/35">
+                {isMe && (
+                  <div className="flex items-center gap-1 mt-0.5 px-1 text-[10px]">
                     {msg.status === 'sending' && (
-                      <span className="flex items-center gap-0.5">
+                      <span className="flex items-center gap-0.5 text-white/35">
                         <Clock className="w-2.5 h-2.5 animate-spin" /> Sending...
                       </span>
                     )}
-                    {msg.status === 'sent' && (
-                      <span className="flex items-center gap-0.5 text-white/40">
-                        <Check className="w-2.5 h-2.5" />
-                      </span>
-                    )}
+
                     {msg.status === 'failed' && (
                       <button
                         onClick={() => onRetryMessage && onRetryMessage(msg)}
-                        className="text-rose-400 hover:underline flex items-center gap-0.5"
+                        className="text-rose-400 hover:underline flex items-center gap-0.5 cursor-pointer"
                       >
                         <AlertCircle className="w-2.5 h-2.5" /> Retry
                       </button>
+                    )}
+
+                    {(msg.status === 'seen' || (msg.seenBy && msg.seenBy.length > 0)) && (
+                      <span
+                        className="flex items-center gap-1 text-sky-400 font-medium select-none"
+                        title={
+                          msg.seenBy && msg.seenBy.length > 0
+                            ? `Seen by ${msg.seenBy.map((s) => s.userName).join(', ')}`
+                            : 'Seen by other participant'
+                        }
+                      >
+                        <CheckCheck className="w-3 h-3 text-sky-400" />
+                        <span className="text-[10px]">Seen</span>
+                        {msg.seenBy && msg.seenBy.length > 1 && (
+                          <span className="text-[9px] text-sky-400/70 font-normal">
+                            ({msg.seenBy.length})
+                          </span>
+                        )}
+                      </span>
+                    )}
+
+                    {msg.status === 'sent' && !(msg.seenBy && msg.seenBy.length > 0) && (
+                      <span className="flex items-center gap-0.5 text-white/40 select-none" title="Sent to room">
+                        <Check className="w-2.5 h-2.5 text-white/40" />
+                        <span className="text-[10px]">Sent</span>
+                      </span>
                     )}
                   </div>
                 )}

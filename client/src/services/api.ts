@@ -104,6 +104,19 @@ export const api = {
     );
   },
 
+  async markMessagesSeen(roomId: string, token: string, messageIds: string[]) {
+    if (!messageIds || messageIds.length === 0) return { success: true, count: 0 };
+    const res = await fetch(`/api/rooms/${roomId}/chat/seen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, messageIds }),
+    });
+    return handleResponse<{ success: boolean; updatedCount: number }>(
+      res,
+      'Failed to mark messages as seen'
+    );
+  },
+
   async kickMember(roomId: string, memberId: string, token: string) {
     const res = await fetch(`/api/rooms/${roomId}/members/${memberId}`, {
       method: 'DELETE',

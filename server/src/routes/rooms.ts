@@ -594,14 +594,86 @@ router.post('/:id/chat', async (req: Request, res: Response) => {
     }
 
     await query(
-      `INSERT INTO room_messages (id, room_id, sender_id, sender_name, sender_role, message, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      `INSERT INTO room_messages (id, room_id, sender_id, sender_name, sender_role, message, created_at, seen_by)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), '[]'::jsonb)`,
       [msgId, id, decoded.userId, decoded.name, decoded.role, cleanText]
     );
 
-    res.json({ success: true, message: chatMsg });
+    res.json({ success: true, message: { ...chatMsg, seenBy: [] } });
   } catch (err: any) {
     res.status(500).json({ error: 'Error sending message' });
+  }
+});
+
+// Mark messages as seen (Read Receipts)
+router.post('/:id/chat/seen', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, messageIds } = req.body;
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session' });
+      return;
+    }
+
+    if (!Array.isArray(messageIds) || messageIds.length === 0) {
+      res.json({ success: true, count: 0 });
+      return;
+    }
+
+    const cleanIds = messageIds.filter((m) => typeof m === 'string' && m.length > 0).slice(0, 50);
+    if (cleanIds.length === 0) {
+      res.json({ success: true, count: 0 });
+      return;
+    }
+
+    const seenEntry = {
+      userId: decoded.userId,
+      userName: decoded.name,
+      seenAt: Date.now(),
+    };
+
+    const toUpdate = await query(
+      `SELECT id, seen_by FROM room_messages
+       WHERE room_id = $1 AND sender_id != $2 AND id = ANY($3::text[])`,
+      [id, decoded.userId, cleanIds]
+    );
+
+    const updatedIds: string[] = [];
+    for (const row of toUpdate.rows) {
+      const existing: any[] = Array.isArray(row.seen_by)
+        ? row.seen_by
+        : typeof row.seen_by === 'string'
+        ? JSON.parse(row.seen_by || '[]')
+        : [];
+      if (!existing.some((s) => s.userId === decoded.userId)) {
+        existing.push(seenEntry);
+        await query('UPDATE room_messages SET seen_by = $1 WHERE id = $2', [JSON.stringify(existing), row.id]);
+        updatedIds.push(row.id);
+      }
+    }
+
+    const coordinator = await roomManager.getCoordinator(id);
+    if (coordinator && updatedIds.length > 0) {
+      coordinator.broadcast({
+        id: generateUserId(),
+        roomId: id,
+        type: 'chat:seen' as any,
+        senderId: decoded.userId,
+        sequence: coordinator.getNextSequence(),
+        sentAt: Date.now(),
+        payload: {
+          messageIds: updatedIds,
+          userId: decoded.userId,
+          userName: decoded.name,
+          seenAt: seenEntry.seenAt,
+        },
+      });
+    }
+
+    res.json({ success: true, updatedCount: updatedIds.length, updatedIds });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Error marking messages as seen' });
   }
 });
 

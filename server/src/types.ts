@@ -53,6 +53,12 @@ export type Participant = {
   lastActive: number;
 };
 
+export type ChatSeenInfo = {
+  userId: string;
+  userName: string;
+  seenAt: number;
+};
+
 export type ChatMessage = {
   id: string;
   roomId: string;
@@ -62,7 +68,8 @@ export type ChatMessage = {
   senderColor: string;
   text: string;
   timestamp: number;
-  status?: 'sending' | 'sent' | 'failed';
+  status?: 'sending' | 'sent' | 'failed' | 'seen';
+  seenBy?: ChatSeenInfo[];
 };
 
 export type Reaction = {
@@ -98,6 +105,7 @@ export type RoomEvent = {
     | 'playback:rate'
     | 'video:change'
     | 'chat:message'
+    | 'chat:seen'
     | 'reaction:send'
     | 'member:join'
     | 'member:leave'

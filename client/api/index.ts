@@ -1245,8 +1245,8 @@ routeBoth('post', '/rooms/:id/chat', async (req: Request, res: Response) => {
 
     const msgId = 'msg_' + crypto.randomBytes(6).toString('hex');
     await query(
-      `INSERT INTO room_messages (id, room_id, sender_id, sender_name, sender_role, message, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      `INSERT INTO room_messages (id, room_id, sender_id, sender_name, sender_role, message, created_at, seen_by)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), '[]'::jsonb)`,
       [msgId, id, decoded.userId, decoded.name, decoded.role, cleanText]
     );
 
@@ -1262,10 +1262,84 @@ routeBoth('post', '/rooms/:id/chat', async (req: Request, res: Response) => {
         text: cleanText,
         timestamp: Date.now(),
         status: 'sent',
+        seenBy: [],
       },
     });
   } catch (err: any) {
     res.status(500).json({ error: 'Error sending message' });
+  }
+});
+
+// 11b. Mark Messages as Seen (Read Receipts)
+routeBoth('post', '/rooms/:id/chat/seen', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, messageIds } = req.body;
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session' });
+      return;
+    }
+
+    if (!Array.isArray(messageIds) || messageIds.length === 0) {
+      res.json({ success: true, count: 0 });
+      return;
+    }
+
+    const cleanIds = messageIds.filter((m) => typeof m === 'string' && m.length > 0).slice(0, 50);
+    if (cleanIds.length === 0) {
+      res.json({ success: true, count: 0 });
+      return;
+    }
+
+    const seenEntry = {
+      userId: decoded.userId,
+      userName: decoded.name,
+      seenAt: Date.now(),
+    };
+
+    // Update messages where sender is NOT the current viewer
+    const toUpdate = await query(
+      `SELECT id, seen_by FROM room_messages
+       WHERE room_id = $1 AND sender_id != $2 AND id = ANY($3::text[])`,
+      [id, decoded.userId, cleanIds]
+    );
+
+    const updatedIds: string[] = [];
+    for (const row of toUpdate.rows) {
+      const existing: any[] = Array.isArray(row.seen_by)
+        ? row.seen_by
+        : typeof row.seen_by === 'string'
+        ? JSON.parse(row.seen_by || '[]')
+        : [];
+      if (!existing.some((s) => s.userId === decoded.userId)) {
+        existing.push(seenEntry);
+        await query('UPDATE room_messages SET seen_by = $1 WHERE id = $2', [JSON.stringify(existing), row.id]);
+        updatedIds.push(row.id);
+      }
+    }
+
+    if (updatedIds.length > 0) {
+      // Broadcast signal to other participants via room_signals
+      await query(
+        `INSERT INTO room_signals (room_id, sender_id, type, payload)
+         VALUES ($1, $2, 'chat:seen', $3)`,
+        [
+          id,
+          decoded.userId,
+          JSON.stringify({
+            messageIds: updatedIds,
+            userId: decoded.userId,
+            userName: decoded.name,
+            seenAt: seenEntry.seenAt,
+          }),
+        ]
+      );
+    }
+
+    res.json({ success: true, updatedCount: updatedIds.length, updatedIds });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Error marking messages as seen' });
   }
 });
 
@@ -1551,7 +1625,7 @@ routeBoth('get', '/rooms/:id/poll', async (req: Request, res: Response) => {
     let chatRes;
     if (since > 0) {
       chatRes = await query(
-        `SELECT rm.id, rm.room_id, rm.sender_id, rm.sender_name, rm.sender_role, rm.message, rm.created_at, u.avatar_color
+        `SELECT rm.id, rm.room_id, rm.sender_id, rm.sender_name, rm.sender_role, rm.message, rm.created_at, rm.seen_by, u.avatar_color
          FROM room_messages rm
          LEFT JOIN users u ON rm.sender_id = u.id
          WHERE rm.room_id = $1 AND rm.created_at >= to_timestamp($2 / 1000.0) - INTERVAL '1 second'
@@ -1561,7 +1635,7 @@ routeBoth('get', '/rooms/:id/poll', async (req: Request, res: Response) => {
       );
     } else {
       chatRes = await query(
-        `SELECT rm.id, rm.room_id, rm.sender_id, rm.sender_name, rm.sender_role, rm.message, rm.created_at, u.avatar_color
+        `SELECT rm.id, rm.room_id, rm.sender_id, rm.sender_name, rm.sender_role, rm.message, rm.created_at, rm.seen_by, u.avatar_color
          FROM room_messages rm
          LEFT JOIN users u ON rm.sender_id = u.id
          WHERE rm.room_id = $1
@@ -1570,16 +1644,25 @@ routeBoth('get', '/rooms/:id/poll', async (req: Request, res: Response) => {
         [id]
       );
     }
-    const recentChat = chatRes.rows.map((m) => ({
-      id: m.id,
-      roomId: m.room_id,
-      senderId: m.sender_id,
-      senderName: m.sender_name,
-      senderRole: m.sender_role,
-      senderColor: m.avatar_color || '#6366f1',
-      text: m.message,
-      timestamp: new Date(m.created_at).getTime(),
-    }));
+    const recentChat = chatRes.rows.map((m) => {
+      const seenBy = Array.isArray(m.seen_by)
+        ? m.seen_by
+        : typeof m.seen_by === 'string'
+        ? JSON.parse(m.seen_by || '[]')
+        : [];
+      return {
+        id: m.id,
+        roomId: m.room_id,
+        senderId: m.sender_id,
+        senderName: m.sender_name,
+        senderRole: m.sender_role,
+        senderColor: m.avatar_color || '#6366f1',
+        text: m.message,
+        timestamp: new Date(m.created_at).getTime(),
+        seenBy,
+        status: seenBy.length > 0 ? 'seen' : 'sent',
+      };
+    });
 
     // Video queue
     const qRes = await query(
