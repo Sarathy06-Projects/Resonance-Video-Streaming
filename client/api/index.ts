@@ -688,6 +688,12 @@ function routeBoth(method: 'get' | 'post' | 'delete', path: string, ...handlers:
   }
 }
 
+// Google AdSense ads.txt verification endpoint
+routeBoth('get', '/ads.txt', (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/plain');
+  res.send('google.com, pub-5775996357609500, DIRECT, f08c47fec0942fa0\n');
+});
+
 // 1. Health check
 routeBoth('get', '/health', async (_req: Request, res: Response) => {
   try {
