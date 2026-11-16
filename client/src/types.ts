@@ -97,6 +97,7 @@ export type RoomMetadata = {
   playbackMode?: 'player' | 'embed' | 'external';
   isPrivate: boolean;
   passcode?: string;
+  hasPasscode?: boolean;
   isLocked: boolean;
   maxParticipants: number;
   theme: string;

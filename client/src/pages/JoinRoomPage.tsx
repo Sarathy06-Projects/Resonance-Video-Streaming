@@ -189,19 +189,19 @@ export const JoinRoomPage: React.FC<JoinRoomPageProps> = ({
               />
             </div>
 
-            {/* Passcode if Private */}
+            {/* Passcode / Password if Private */}
             {roomData?.hasPasscode && (
               <div>
                 <label className="block text-xs font-medium text-white/50 mb-1.5 flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-white/40" />
-                  <span>Passcode Required</span>
+                  <Lock className="w-3 h-3 text-amber-400" />
+                  <span>Room Password Required</span>
                 </label>
                 <input
                   type="password"
                   required
                   value={passcode}
                   onChange={(e) => setPasscode(e.target.value)}
-                  placeholder="Enter passcode"
+                  placeholder="Enter room password"
                   className="w-full bg-white/[0.03] border border-white/[0.08] focus:border-white/20 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/30 outline-none transition-colors"
                 />
               </div>

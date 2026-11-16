@@ -892,7 +892,10 @@ export function useRoomSocket({
     (targetMemberId: string) => send('member:kick', { targetMemberId }),
     [send]
   );
-  const emitToggleLock = useCallback((isLocked: boolean) => send('room:lock', { isLocked }), [send]);
+  const emitToggleLock = useCallback(
+    (isLocked: boolean, passcode?: string) => send('room:lock', { isLocked, passcode }),
+    [send]
+  );
   const emitAddToQueue = useCallback(
     (videoId: string, title: string, thumbnailUrl: string) =>
       send('queue:add', { videoId, title, thumbnailUrl }),

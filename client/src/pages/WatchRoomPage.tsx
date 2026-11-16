@@ -29,6 +29,7 @@ import { InviteModal } from '../components/InviteModal';
 import { UpgradeModal } from '../components/UpgradeModal';
 import { RoomSettingsModal } from '../components/RoomSettingsModal';
 import { ChangeVideoModal } from '../components/ChangeVideoModal';
+import { api } from '../services/api';
 import { PROVIDER_META } from '../utils/resolver';
 
 interface WatchRoomPageProps {
@@ -234,14 +235,14 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
   const currentMeta = PROVIDER_META[currentProvider] || PROVIDER_META.youtube;
 
   return (
-    <div className="h-screen h-[100dvh] max-h-screen bg-[#07080a] text-[#f5f5f7] flex flex-col overflow-hidden selection:bg-white/20 selection:text-white">
+    <div className="fixed inset-0 h-[100dvh] bg-[#07080a] text-[#f5f5f7] flex flex-col overflow-hidden selection:bg-white/20 selection:text-white">
       {/* Top Navigation */}
-      <header className="h-[52px] shrink-0 border-b border-white/[0.06] bg-[#07080a]/90 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between z-30 sticky top-0">
-        {/* Left: Minimal Leave + Title + Room ID */}
+      <header className="h-[52px] shrink-0 border-b border-white/[0.06] bg-[#07080a]/95 backdrop-blur-xl px-4 sm:px-6 flex items-center justify-between z-30">
+        {/* Left: Minimal Leave + Room ID */}
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={handleLeaveClick}
-            className="flex items-center gap-1 text-xs text-white/50 hover:text-white px-2.5 py-1.5 rounded-full hover:bg-white/[0.06] transition-colors"
+            className="flex items-center gap-1 text-xs text-white/50 hover:text-white px-2.5 py-1.5 rounded-full hover:bg-white/[0.06] transition-colors cursor-pointer"
             title={isHost ? 'End room for everyone' : 'Leave watch party'}
           >
             <ChevronLeft className="w-4 h-4 -ml-1 text-white/50" />
@@ -251,17 +252,14 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
           <div className="h-3.5 w-px bg-white/[0.08]" />
 
           <div className="flex items-center gap-2 min-w-0">
-            <h1 className="text-xs sm:text-sm font-medium text-white/90 truncate max-w-[160px] sm:max-w-xs md:max-w-md tracking-tight">
-              {metadata?.title || 'Watch Party'}
-            </h1>
-
             {/* Subtle Room ID Pill with Click to Copy */}
             <button
               onClick={handleCopyRoomId}
-              className="hidden sm:inline-flex items-center gap-1 font-mono text-[11px] text-white/40 hover:text-white/80 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] px-2 py-0.5 rounded-md transition-all"
+              className="inline-flex items-center gap-1.5 font-mono text-[11px] text-white/50 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] px-2.5 py-1 rounded-full transition-all cursor-pointer"
               title="Click to copy room ID"
             >
-              <span>{roomId}</span>
+              <span className="text-white/30 text-[10px]">Room</span>
+              <span className="font-semibold text-white/80">{roomId}</span>
               {copiedRoomId ? (
                 <Check className="w-2.5 h-2.5 text-emerald-400" />
               ) : (
@@ -277,8 +275,9 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
             ) : null}
 
             {isLocked && (
-              <span className="text-rose-400 text-[10px] flex items-center gap-0.5" title="Room is private">
-                <Lock className="w-2.5 h-2.5" />
+              <span className="text-rose-400 text-[10px] sm:text-[11px] font-medium flex items-center gap-1 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full" title="Room is private">
+                <Lock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                <span className="hidden sm:inline">Locked</span>
               </span>
             )}
 
@@ -292,15 +291,15 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
-          {/* Change Video Button (Host Only) */}
+          {/* Change Video Button (Desktop Only) */}
           {isHost && (
             <button
               onClick={() => setIsChangeVideoOpen(true)}
-              className="flex items-center gap-1.5 text-xs text-white/80 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] px-3 py-1.5 rounded-full transition-colors cursor-pointer"
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs text-white/80 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] px-3 py-1.5 rounded-full transition-colors cursor-pointer"
               title="Change Video Source"
             >
               <Film className="w-3.5 h-3.5 text-white/60" />
-              <span className="hidden sm:inline">Change Video</span>
+              <span>Change Video</span>
             </button>
           )}
 
@@ -318,7 +317,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
           {/* Invite Button: Apple-style High Contrast Pill */}
           <button
             onClick={() => setIsInviteOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-medium text-black bg-white hover:bg-white/90 px-3.5 py-1.5 rounded-full shadow-sm transition-all hover:scale-[1.01]"
+            className="flex items-center gap-1.5 text-xs font-medium text-black bg-white hover:bg-white/90 px-3.5 py-1.5 rounded-full shadow-sm transition-all hover:scale-[1.01] cursor-pointer"
           >
             <Share2 className="w-3.5 h-3.5 text-black" />
             <span>Invite</span>
@@ -328,7 +327,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
           {isHost && (
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.06] transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
               title="Room Settings"
             >
               <Settings className="w-4 h-4" />
@@ -499,12 +498,22 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
       <RoomSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        roomId={roomId}
-        token={token}
         isLocked={isLocked}
-        currentTheme="obsidian"
-        onToggleLock={(locked) => emitToggleLock(locked)}
-        onSelectTheme={() => {}}
+        hasPasscode={Boolean(metadata?.hasPasscode)}
+        isHost={isHost}
+        onOpenChangeVideo={() => {
+          setIsSettingsOpen(false);
+          setIsChangeVideoOpen(true);
+        }}
+        onToggleLock={async (locked, passcode) => {
+          try {
+            await api.lockRoom(roomId, token, locked, passcode);
+            emitToggleLock(locked, passcode);
+          } catch (err) {
+            console.error('Failed to toggle lock:', err);
+            throw err;
+          }
+        }}
       />
 
       <ChangeVideoModal

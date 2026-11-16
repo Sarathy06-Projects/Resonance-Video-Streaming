@@ -92,13 +92,16 @@ export const api = {
     return handleResponse<JoinRoomResponse>(res, 'Failed to join room');
   },
 
-  async lockRoom(roomId: string, token: string, isLocked: boolean) {
+  async lockRoom(roomId: string, token: string, isLocked: boolean, passcode?: string) {
     const res = await fetch(`/api/rooms/${roomId}/lock`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, isLocked }),
+      body: JSON.stringify({ token, isLocked, passcode }),
     });
-    return handleResponse(res, 'Failed to toggle room lock');
+    return handleResponse<{ success: boolean; isLocked: boolean; hasPasscode: boolean }>(
+      res,
+      'Failed to toggle room lock'
+    );
   },
 
   async kickMember(roomId: string, memberId: string, token: string) {

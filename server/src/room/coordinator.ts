@@ -651,8 +651,16 @@ export class RoomCoordinator {
       case 'room:lock': {
         if (!isHost) return;
         const isLocked = Boolean(event.payload.isLocked);
+        const passcode = isLocked && typeof event.payload.passcode === 'string' ? event.payload.passcode.trim() : null;
         this.metadata.isLocked = isLocked;
-        query('UPDATE rooms SET is_locked = $1 WHERE id = $2', [isLocked, this.roomId]).catch(console.error);
+        this.metadata.isPrivate = isLocked;
+        this.metadata.passcode = passcode || undefined;
+        query('UPDATE rooms SET is_locked = $1, is_private = $2, passcode = $3 WHERE id = $4', [
+          isLocked,
+          isLocked,
+          passcode,
+          this.roomId,
+        ]).catch(console.error);
 
         this.broadcast({
           id: nanoid(),
@@ -661,7 +669,7 @@ export class RoomCoordinator {
           senderId,
           sequence: this.getNextSequence(),
           sentAt: Date.now(),
-          payload: { isLocked },
+          payload: { isLocked, hasPasscode: Boolean(passcode) },
         });
         break;
       }

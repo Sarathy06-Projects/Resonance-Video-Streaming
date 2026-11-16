@@ -168,7 +168,7 @@ export function App() {
     <div
       className={`${
         currentRoomId && roomToken
-          ? 'h-screen h-[100dvh] overflow-hidden'
+          ? 'fixed inset-0 h-[100dvh] overflow-hidden'
           : 'min-h-screen'
       } bg-dark-950 text-gray-100 flex flex-col font-sans selection:bg-brand-500 selection:text-white`}
     >

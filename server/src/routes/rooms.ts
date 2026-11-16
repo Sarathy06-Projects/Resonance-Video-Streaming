@@ -180,7 +180,7 @@ router.post('/:id/join', async (req: Request, res: Response) => {
     }
 
     // Check room lock
-    if (coordinator.metadata.isLocked) {
+    if (coordinator.metadata.isLocked && !coordinator.metadata.passcode) {
       res.status(403).json({ error: 'Room is locked by the host' });
       return;
     }
@@ -194,11 +194,11 @@ router.post('/:id/join', async (req: Request, res: Response) => {
       return;
     }
 
-    // Check passcode if room is private (Constant-time comparison)
-    if (coordinator.metadata.isPrivate && coordinator.metadata.passcode) {
+    // Check passcode if room is private or passcode protected (Constant-time comparison)
+    if (coordinator.metadata.passcode || (coordinator.metadata.isPrivate && coordinator.metadata.passcode)) {
       const providedPasscode = typeof passcode === 'string' ? passcode.trim() : '';
       if (!providedPasscode || !timingSafeCompare(providedPasscode, coordinator.metadata.passcode)) {
-        res.status(401).json({ error: 'Incorrect room passcode', code: 'PASSCODE_REQUIRED' });
+        res.status(401).json({ error: 'Incorrect room password', code: 'PASSCODE_REQUIRED' });
         return;
       }
     }
@@ -334,7 +334,7 @@ router.post('/:id/leave', async (req: Request, res: Response) => {
 router.post('/:id/lock', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { token, isLocked } = req.body;
+    const { token, isLocked, passcode } = req.body;
     const decoded = verifySessionToken(token);
     if (!decoded || decoded.roomId !== id || decoded.role !== 'host') {
       res.status(403).json({ error: 'Unauthorized: only host can lock the room' });
@@ -347,8 +347,24 @@ router.post('/:id/lock', async (req: Request, res: Response) => {
       return;
     }
 
-    coordinator.metadata.isLocked = Boolean(isLocked);
-    await query('UPDATE rooms SET is_locked = $1 WHERE id = $2', [coordinator.metadata.isLocked, id]);
+    const locked = Boolean(isLocked);
+    const cleanPasscode = locked && typeof passcode === 'string' ? passcode.trim() : null;
+
+    if (locked && !cleanPasscode) {
+      res.status(400).json({ error: 'A password is required to lock the room' });
+      return;
+    }
+
+    coordinator.metadata.isLocked = locked;
+    coordinator.metadata.isPrivate = locked;
+    coordinator.metadata.passcode = cleanPasscode || undefined;
+
+    await query('UPDATE rooms SET is_locked = $1, is_private = $2, passcode = $3 WHERE id = $4', [
+      locked,
+      locked,
+      cleanPasscode,
+      id,
+    ]);
 
     coordinator.broadcast({
       id: generateUserId(),
@@ -357,10 +373,10 @@ router.post('/:id/lock', async (req: Request, res: Response) => {
       senderId: decoded.userId,
       sequence: coordinator.getNextSequence(),
       sentAt: Date.now(),
-      payload: { isLocked: coordinator.metadata.isLocked },
+      payload: { isLocked: locked, hasPasscode: Boolean(cleanPasscode) },
     });
 
-    res.json({ success: true, isLocked: coordinator.metadata.isLocked });
+    res.json({ success: true, isLocked: locked, hasPasscode: Boolean(cleanPasscode) });
   } catch (err: any) {
     console.error('[POST /api/rooms/:id/lock] Error:', err);
     res.status(500).json({ error: 'Error locking room' });

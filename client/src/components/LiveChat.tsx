@@ -101,7 +101,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
   return (
     <div className="flex flex-col h-full min-h-0 bg-[#0a0c10] text-white">
       {/* Messages Feed */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3 scrollbar-none relative">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-3 scrollbar-none overscroll-contain relative">
         {/* Floating Reactions Overlay inside Chat */}
         <ReactionsOverlay reactions={reactions} compact />
 
@@ -180,10 +180,10 @@ export const LiveChat: React.FC<LiveChatProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Composer Section (Floating & Stuck to Bottom for Mobile) */}
-      <div className="p-2.5 sm:p-3 border-t border-white/[0.08] bg-[#0c0e14]/95 backdrop-blur-xl shrink-0 sticky bottom-0 z-30 shadow-[0_-10px_25px_rgba(0,0,0,0.5)] pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      {/* Composer Section (Permanently Fixed & Floating at Bottom for Mobile) */}
+      <div className="p-2 sm:p-2.5 border-t border-white/[0.08] bg-[#0c0e14] shrink-0 sticky bottom-0 z-30 shadow-[0_-10px_25px_rgba(0,0,0,0.6)] pb-[max(0.6rem,env(safe-area-inset-bottom))]">
         {/* Quick Reactions Bar */}
-        <div className="flex items-center justify-between pb-2 px-0.5">
+        <div className="flex items-center justify-between pb-1.5 px-0.5">
           <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
             {quickReactions.map((emoji) => (
               <button
@@ -215,7 +215,7 @@ export const LiveChat: React.FC<LiveChatProps> = ({
             onChange={(e) => setInputText(e.target.value)}
             placeholder="Type a message..."
             maxLength={500}
-            className="w-full bg-white/[0.06] border border-white/[0.1] focus:border-white/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-white/35 outline-none pr-10 transition-colors shadow-inner"
+            className="w-full bg-white/[0.06] border border-white/[0.1] focus:border-white/30 rounded-xl px-3.5 py-2 sm:py-2.5 text-xs text-white placeholder-white/35 outline-none pr-10 transition-colors shadow-inner"
           />
           <button
             type="submit"

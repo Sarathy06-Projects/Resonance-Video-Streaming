@@ -928,7 +928,7 @@ routeBoth('post', '/rooms/:id/join', async (req: Request, res: Response) => {
       }
     }
 
-    if (room.is_locked) {
+    if (room.is_locked && !room.passcode) {
       res.status(403).json({ error: 'Room is locked by the host' });
       return;
     }
@@ -946,10 +946,10 @@ routeBoth('post', '/rooms/:id/join', async (req: Request, res: Response) => {
       return;
     }
 
-    if (room.is_private && room.passcode) {
+    if (room.passcode || (room.is_private && room.passcode)) {
       const providedPasscode = typeof passcode === 'string' ? passcode.trim() : '';
       if (!providedPasscode || !timingSafeCompare(providedPasscode, room.passcode)) {
-        res.status(401).json({ error: 'Incorrect room passcode', code: 'PASSCODE_REQUIRED' });
+        res.status(401).json({ error: 'Incorrect room password', code: 'PASSCODE_REQUIRED' });
         return;
       }
     }
@@ -1093,14 +1093,25 @@ routeBoth('post', '/rooms/:id/leave', async (req: Request, res: Response) => {
 routeBoth('post', '/rooms/:id/lock', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { token, isLocked } = req.body;
+    const { token, isLocked, passcode } = req.body;
     const decoded = verifySessionToken(token);
     if (!decoded || decoded.roomId !== id || decoded.role !== 'host') {
       res.status(403).json({ error: 'Unauthorized: only host can lock the room' });
       return;
     }
-    await query('UPDATE rooms SET is_locked = $1 WHERE id = $2', [Boolean(isLocked), id]);
-    res.json({ success: true, isLocked: Boolean(isLocked) });
+    const locked = Boolean(isLocked);
+    const cleanPasscode = locked && typeof passcode === 'string' ? passcode.trim() : null;
+
+    if (locked && !cleanPasscode) {
+      res.status(400).json({ error: 'A password is required to lock the room' });
+      return;
+    }
+
+    await query(
+      'UPDATE rooms SET is_locked = $1, is_private = $2, passcode = $3 WHERE id = $4',
+      [locked, locked, cleanPasscode, id]
+    );
+    res.json({ success: true, isLocked: locked, hasPasscode: Boolean(cleanPasscode) });
   } catch (err: any) {
     res.status(500).json({ error: 'Error locking room' });
   }
