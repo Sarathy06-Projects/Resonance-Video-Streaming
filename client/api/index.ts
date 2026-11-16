@@ -890,6 +890,11 @@ routeBoth('post', '/rooms/:id/join', async (req: Request, res: Response) => {
     }
     const room = rRes.rows[0];
 
+    if (room.status === 'terminated') {
+      res.status(410).json({ error: 'This room has been terminated because the host left.' });
+      return;
+    }
+
     const metadata = {
       id: room.id,
       hostId: room.host_id,
@@ -988,6 +993,99 @@ routeBoth('post', '/rooms/:id/join', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[POST /api/rooms/:id/join] Error:', err);
     res.status(500).json({ error: 'Error joining room' });
+  }
+});
+
+// 6b. Section 15: Authoritative Room Termination Endpoint
+routeBoth('post', '/rooms/:id/terminate', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token, reason } = req.body;
+
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session token' });
+      return;
+    }
+
+    const roomRes = await query('SELECT host_id, status FROM rooms WHERE id = $1', [id]);
+    if (roomRes.rows.length === 0) {
+      res.status(404).json({ error: 'Room not found' });
+      return;
+    }
+
+    const hostId = roomRes.rows[0].host_id;
+    if (decoded.userId !== hostId && decoded.role !== 'host') {
+      res.status(403).json({ error: 'Only the original room host can terminate the room session' });
+      return;
+    }
+
+    await query(
+      `UPDATE rooms SET status = 'terminated', is_call_active = false, terminated_at = NOW(), termination_reason = $1 WHERE id = $2`,
+      [reason || 'The host has ended the room session.', id]
+    );
+
+    // Broadcast room.terminated to polling signal table
+    await query(
+      `INSERT INTO room_signals (room_id, sender_id, event_type, payload, target_peer_id, created_at)
+       VALUES ($1, $2, 'room.terminated', $3, NULL, NOW())`,
+      [id, decoded.userId, JSON.stringify({ roomId: id, reason: reason || 'The host has ended the room session.', timestamp: Date.now() })]
+    ).catch(() => {});
+
+    res.json({ success: true, terminated: true });
+  } catch (err: any) {
+    console.error('[POST /api/rooms/:id/terminate] Error:', err);
+    res.status(500).json({ error: 'Error terminating room session' });
+  }
+});
+
+// 6c. Section 15: Participant / Host Voluntary Leave Endpoint
+routeBoth('post', '/rooms/:id/leave', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { token } = req.body;
+
+    const decoded = verifySessionToken(token);
+    if (!decoded || decoded.roomId !== id) {
+      res.status(401).json({ error: 'Unauthorized session token' });
+      return;
+    }
+
+    const roomRes = await query('SELECT host_id, status FROM rooms WHERE id = $1', [id]);
+    if (roomRes.rows.length === 0) {
+      res.status(404).json({ error: 'Room not found' });
+      return;
+    }
+
+    const hostId = roomRes.rows[0].host_id;
+
+    // If host leaves voluntarily, terminate room session for everyone!
+    if (decoded.userId === hostId || decoded.role === 'host') {
+      await query(
+        `UPDATE rooms SET status = 'terminated', is_call_active = false, terminated_at = NOW(), termination_reason = $1 WHERE id = $2`,
+        ['The host has left the room. This session has been ended.', id]
+      );
+      await query(
+        `INSERT INTO room_signals (room_id, sender_id, event_type, payload, target_peer_id, created_at)
+         VALUES ($1, $2, 'room.terminated', $3, NULL, NOW())`,
+        [id, decoded.userId, JSON.stringify({ roomId: id, reason: 'The host has left the room. This session has been ended.', timestamp: Date.now() })]
+      ).catch(() => {});
+      res.json({ success: true, terminated: true });
+      return;
+    }
+
+    // Guest leaves: remove from room_members, room remains active
+    await query('DELETE FROM room_members WHERE room_id = $1 AND user_id = $2', [id, decoded.userId]);
+    await query(
+      `INSERT INTO room_signals (room_id, sender_id, event_type, payload, target_peer_id, created_at)
+       VALUES ($1, $2, 'room.participant.removed', $3, NULL, NOW())`,
+      [id, decoded.userId, JSON.stringify({ roomId: id, participantId: decoded.userId, reason: 'Participant left the room.' })]
+    ).catch(() => {});
+
+    res.json({ success: true, left: true });
+  } catch (err: any) {
+    console.error('[POST /api/rooms/:id/leave] Error:', err);
+    res.status(500).json({ error: 'Error leaving room' });
   }
 });
 
@@ -1395,6 +1493,11 @@ routeBoth('get', '/rooms/:id/poll', async (req: Request, res: Response) => {
       return;
     }
     const room = rRes.rows[0];
+
+    if (room.status === 'terminated') {
+      res.status(410).json({ error: 'This room has been terminated because the host left.', isTerminated: true });
+      return;
+    }
 
     // Playback state
     let playback = room.playback_state;
