@@ -391,7 +391,7 @@ export const WatchRoomPage: React.FC<WatchRoomPageProps> = ({
         </div>
 
         {/* Right Side: Integrated Sidebar */}
-        <div className="flex-1 min-h-0 w-full lg:w-[350px] xl:w-[380px] 2xl:w-[420px] flex flex-col h-full shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0a0c10]">
+        <div className="flex-1 min-h-0 w-full lg:w-[350px] xl:w-[380px] 2xl:w-[420px] flex flex-col lg:h-full lg:shrink-0 border-t lg:border-t-0 lg:border-l border-white/[0.06] bg-[#0a0c10]">
           {/* Segmented Tab Switcher */}
           <div className="p-3 border-b border-white/[0.06] shrink-0">
             <div className="grid grid-cols-3 bg-white/[0.03] p-1 rounded-xl border border-white/[0.06] text-xs">
